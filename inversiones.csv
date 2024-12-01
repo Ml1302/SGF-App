@@ -1,0 +1,5 @@
+ID,Tipo,Monto,Tasa (%),Plazo (años),Resultado
+1,Interés Compuesto,1200.0,36.0,2,2219.5199999999995
+2,compuesto,1200.0,36.0,4,4105.224191999998
+3,compuesto,1200.0,36.0,4,4105.224191999998
+4,compuesto,1200.0,36.0,4,4105.224191999998
