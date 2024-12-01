@@ -1,3 +1,5 @@
+import numpy as np
+
 def calcular_interes_simple(monto, tasa, plazo):
     return monto * (1 + (tasa / 100) * plazo)
 
