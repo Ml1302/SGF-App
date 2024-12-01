@@ -1,1 +1,7 @@
 matplotlib
+numpy
+requests
+pandas
+yfinance
+scipy
+pandas_datareader
