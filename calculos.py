@@ -1,4 +1,6 @@
 import numpy as np
+import numpy_financial as npf
+from scipy import stats
 
 def calcular_interes_simple(monto, tasa, plazo):
     return monto * (1 + (tasa / 100) * plazo)
@@ -32,6 +34,84 @@ def analizar_portafolio(montos, instrumentos):
     return retorno_esperado, riesgo
 
 def calcular_riesgo_portafolio(pesos, instrumentos):
-    """Calcula el riesgo del portafolio usando la matriz de correlación"""
-    # Implementar cálculo de riesgo usando matriz de correlación
-    return sum(p * i['riesgo'] for p, i in zip(pesos, instrumentos))
+    """Calcula el riesgo del portafolio usando una matriz de correlación simplificada"""
+    # Ejemplo simplificado asumiendo correlación 0
+    riesgo = 0
+    for peso, instrumento in zip(pesos, instrumentos):
+        riesgo += (peso ** 2) * (instrumento['riesgo'] ** 2)
+    return np.sqrt(riesgo)
+
+def calcular_amortizacion_aleman(monto, tasa, plazo):
+    tasa_mensual = tasa / 100
+    cuota = monto / plazo
+    amortizaciones = []
+    saldo = monto
+    for _ in range(plazo):
+        interes = saldo * tasa_mensual
+        saldo -= cuota
+        amortizaciones.append({'cuota': cuota + interes, 'interés': interes, 'principal': cuota, 'saldo': saldo})
+    return amortizaciones
+
+def calcular_amortizacion_frances(monto, tasa, plazo):
+    tasa_mensual = tasa / 100
+    cuota = npf.pmt(tasa_mensual, plazo, -monto)
+    amortizaciones = []
+    saldo = monto
+    for _ in range(plazo):
+        interes = saldo * tasa_mensual
+        principal = cuota - interes
+        saldo -= principal
+        amortizaciones.append({'cuota': cuota, 'interés': interes, 'principal': principal, 'saldo': saldo})
+    return amortizaciones
+
+def calcular_tir(flujos):
+    """Calcula la TIR sin redondear"""
+    return npf.irr(flujos) * 100
+
+def calcular_van(flujos, tasa):
+    """Calcula el Valor Actual Neto"""
+    return npf.npv(tasa/100, flujos)
+
+def analisis_sensibilidad(monto, tasa_base, plazo, rango_tasa=2, pasos=5):
+    """Realiza análisis de sensibilidad variando la tasa de interés"""
+    resultados = []
+    tasas = np.linspace(tasa_base - rango_tasa, tasa_base + rango_tasa, pasos)
+    for tasa in tasas:
+        van = calcular_van([-monto] + [monto * tasa/100] * plazo, tasa)
+        resultados.append({'tasa': tasa, 'van': van})
+    return resultados
+
+def calcular_payback(flujos):
+    """Calcula el período de recuperación de la inversión"""
+    flujo_acumulado = 0
+    for i, flujo in enumerate(flujos[1:], 1):
+        flujo_acumulado += flujo
+        if flujo_acumulado >= abs(flujos[0]):
+            return i
+    return None
+
+def calcular_indicadores_riesgo(flujos_historicos):
+    """Calcula indicadores de riesgo basados en datos históricos"""
+    retornos = np.diff(flujos_historicos) / flujos_historicos[:-1]
+    return {
+        'volatilidad': np.std(retornos) * np.sqrt(12),  # Anualizada
+        'var_95': stats.norm.ppf(0.95, np.mean(retornos), np.std(retornos))
+    }
+
+def comparar_alternativas_financiamiento(opciones, perfil_riesgo='moderado'):
+    """Compara diferentes alternativas de financiamiento según el perfil de riesgo"""
+    resultados = []
+    pesos = {'tir': 0.4, 'plazo': 0.3, 'cuota': 0.3}
+    
+    if perfil_riesgo == 'conservador':
+        pesos = {'tir': 0.3, 'plazo': 0.4, 'cuota': 0.3}
+    elif perfil_riesgo == 'agresivo':
+        pesos = {'tir': 0.5, 'plazo': 0.2, 'cuota': 0.3}
+    
+    for opcion in opciones:
+        score = (opcion['tir'] * pesos['tir'] + 
+                (1/opcion['plazo']) * pesos['plazo'] + 
+                (1/opcion['cuota']) * pesos['cuota'])
+        resultados.append({'opcion': opcion, 'score': score})
+    
+    return sorted(resultados, key=lambda x: x['score'], reverse=True)

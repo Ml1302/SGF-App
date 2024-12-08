@@ -96,6 +96,9 @@ class APIsFinancierasPeru:
             stock = yf.Ticker(self.tickers_peru.get(ticker, ticker))
             hist = stock.history(period="1y")
             return hist
+        except yf.exceptions.YFinanceError as e:
+            print(f"Error específico de YFinance al obtener datos de {ticker}: {e}")
+            return None
         except Exception as e:
             print(f"Error al obtener datos de {ticker}: {e}")
             return None
