@@ -8,3 +8,4 @@ reportlab==4.2.5
 requests==2.32.3
 scipy==1.14.1
 yfinance==0.2.25
+fpdf==1.7.2
