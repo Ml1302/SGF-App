@@ -7,3 +7,4 @@ scipy==1.11.1
 pandas_datareader==0.10.0
 numpy-financial==1.0.2
 reportlab==3.6.12
+Pillow

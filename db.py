@@ -80,7 +80,7 @@ def guardar_financiamiento(tipo_amortizacion, monto, tasa, plazo, tir):
     cursor.execute("""
         INSERT INTO financiamientos (tipo_amortizacion, monto, tasa, plazo, tir)
         VALUES (?, ?, ?, ?, ?)
-    """, (tipo_amortizacion, monto, tasa, plazo, tir))
+    """, (tipo_amortizacion, monto, tasa, plazo, tir))  # 'tasa' es la tasa convertida
     conexion.commit()
     conexion.close()
 
@@ -96,7 +96,7 @@ def obtener_financiamientos_guardados():
             'id': row[0],
             'tipo_amortizacion': row[1],
             'monto': row[2],
-            'tasa': row[3],
+            'tasa': row[3],  # Esta es la tasa convertida
             'plazo': row[4],
             'tir': row[5]
         })

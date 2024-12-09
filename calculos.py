@@ -42,27 +42,60 @@ def calcular_riesgo_portafolio(pesos, instrumentos):
     return np.sqrt(riesgo)
 
 def calcular_amortizacion_aleman(monto, tasa, plazo):
-    tasa_mensual = tasa / 100
+    """
+    Calcula la tabla de amortización alemana.
+    tasa: ya debe venir convertida a la periodicidad correcta
+    """
+    tasa_decimal = tasa / 100  # La tasa ya viene en la periodicidad correcta
     cuota = monto / plazo
     amortizaciones = []
     saldo = monto
     for _ in range(plazo):
-        interes = saldo * tasa_mensual
+        interes = saldo * tasa_decimal
         saldo -= cuota
-        amortizaciones.append({'cuota': cuota + interes, 'interés': interes, 'principal': cuota, 'saldo': saldo})
+        amortizaciones.append({
+            'cuota': cuota + interes,
+            'interés': interes,
+            'principal': cuota,
+            'saldo': saldo
+        })
     return amortizaciones
 
 def calcular_amortizacion_frances(monto, tasa, plazo):
-    tasa_mensual = tasa / 100
-    cuota = npf.pmt(tasa_mensual, plazo, -monto)
+    """
+    Calcula la tabla de amortización francesa.
+    tasa: ya debe venir convertida a la periodicidad correcta
+    """
+    tasa_decimal = tasa / 100  # La tasa ya viene en la periodicidad correcta
+    cuota = npf.pmt(tasa_decimal, plazo, -monto)
     amortizaciones = []
     saldo = monto
     for _ in range(plazo):
-        interes = saldo * tasa_mensual
+        interes = saldo * tasa_decimal
         principal = cuota - interes
         saldo -= principal
-        amortizaciones.append({'cuota': cuota, 'interés': interes, 'principal': principal, 'saldo': saldo})
+        amortizaciones.append({
+            'cuota': cuota,
+            'interés': interes,
+            'principal': principal,
+            'saldo': saldo
+        })
     return amortizaciones
+
+def convertir_tasa(tasa_original, periodo_origen, periodo_destino):
+    """
+    Convierte una tasa de interés de un periodo a otro.
+
+    Parámetros:
+    - tasa_original: Tasa de interés en formato decimal (por ejemplo, 0.12 para 12%).
+    - periodo_origen: Número de periodos por año de la tasa original.
+    - periodo_destino: Número de periodos por año de la tasa deseada.
+
+    Retorna:
+    - Tasa convertida en formato decimal.
+    """
+    tasa_convertida = (1 + tasa_original) ** (periodo_destino / periodo_origen) - 1
+    return tasa_convertida
 
 def calcular_tir(flujos):
     """Calcula la TIR sin redondear"""
@@ -103,9 +136,9 @@ def comparar_alternativas_financiamiento(opciones, perfil_riesgo='moderado'):
     resultados = []
     pesos = {'tir': 0.4, 'plazo': 0.3, 'cuota': 0.3}
     
-    if perfil_riesgo == 'conservador':
+    if (perfil_riesgo == 'conservador'):
         pesos = {'tir': 0.3, 'plazo': 0.4, 'cuota': 0.3}
-    elif perfil_riesgo == 'agresivo':
+    elif (perfil_riesgo == 'agresivo'):
         pesos = {'tir': 0.5, 'plazo': 0.2, 'cuota': 0.3}
     
     for opcion in opciones:

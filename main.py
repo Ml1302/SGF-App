@@ -1,4 +1,5 @@
 import tkinter as tk
+import matplotlib.pyplot as plt  # Asegurarse de importar matplotlib
 from tkinter import messagebox, ttk, Frame, Scrollbar, VERTICAL, RIGHT, LEFT, Y, BOTH
 from db import inicializar_db, guardar_simulacion, obtener_historial, guardar_financiamiento, obtener_financiamientos_guardados, eliminar_financiamiento  # Importar eliminar_financiamiento
 from calculos import calcular_interes_simple, calcular_interes_compuesto, calcular_aportaciones_periodicas, calcular_amortizacion_aleman, calcular_amortizacion_frances, calcular_tir, analisis_sensibilidad
@@ -7,6 +8,9 @@ from apis import APIsFinancierasPeru
 from exportacion import exportar_datos, generar_reporte_pdf
 import sqlite3
 from datetime import datetime
+import requests
+import numpy as np  # Asegurarse de importar numpy
+from calculos import convertir_tasa  # Importar la función convertir_tasa
 
 
 def obtener_tasa_interes_actual():
@@ -70,7 +74,7 @@ def visualizar_comparacion():
             fin['id'],
             fin['tipo_amortizacion'].capitalize(),
             f"S/ {fin['monto']:.2f}",
-            f"{fin['tasa']:.2f}%",
+            f"{fin['tasa']:.2f}%",  # Mostrar tasa convertida
             fin['plazo'],
             f"{fin['tir']:.6f}%"  # Mostrar TIR sin redondeo
         ))
@@ -330,16 +334,52 @@ def interfaz_grafica():
             monto = float(entrada_fin_monto.get())
             tasa = float(entrada_fin_tasa.get())
             plazo = int(entrada_fin_plazo.get())
-            # Calcular amortización y TIR
+            unidad_t = unidad_tasa.get()
+            unidad_p = unidad_plazo.get()
+
+            # Definir periodos por año según unidad
+            periodos_por_anno = {
+                "Anual": 1, "Anuales": 1, "Año": 1, "Años": 1,
+                "Semestral": 2, "Semestrales": 2, "Semestre": 2, "Semestres": 2,
+                "Trimestral": 4, "Trimestrales": 4, "Trimestre": 4, "Trimestres": 4,
+                "Bimestral": 6, "Bimestrales": 6, "Bimestre": 6, "Bimestres": 6,
+                "Mensual": 12, "Mensuales": 12, "Mes": 12, "Meses": 12
+            }
+
+            # Obtener los periodos por año para la tasa y el plazo
+            periodo_origen = periodos_por_anno.get(unidad_t, None)
+            periodo_destino = periodos_por_anno.get(unidad_p, None)
+
+            if periodo_origen is None:
+                messagebox.showerror("Error", f"Unidad de tasa desconocida: {unidad_t}")
+                return
+            if periodo_destino is None:
+                messagebox.showerror("Error", f"Unidad de plazo desconocida: {unidad_p}")
+                return
+
+            # Convertir tasa a formato decimal
+            tasa_decimal = tasa / 100
+
+            # Convertir la tasa utilizando la función convertir_tasa
+            tasa_convertida_decimal = convertir_tasa(tasa_decimal, periodo_origen, periodo_destino)
+            tasa_convertida = tasa_convertida_decimal * 100  # Volver a porcentaje
+
+            # Calcular el total de períodos
+            total_periodos = plazo * periodo_destino
+
+            # Calcular amortización y TIR usando la tasa convertida y el número de periodos
             if tipo == "alemán":
-                amort = calcular_amortizacion_aleman(monto, tasa, plazo)
+                amort = calcular_amortizacion_aleman(monto, tasa_convertida, int(total_periodos))
             else:
-                amort = calcular_amortizacion_frances(monto, tasa, plazo)
+                amort = calcular_amortizacion_frances(monto, tasa_convertida, int(total_periodos))
+
             flujos = [-monto] + [pago['cuota'] for pago in amort]
-            tir = calcular_tir(flujos)  # No redondear la TIR
-            # Guardar en la base de datos
-            guardar_financiamiento(tipo, monto, tasa, plazo, tir)
-            messagebox.showinfo("Éxito", "Financiamiento agregado correctamente.")
+            tir = calcular_tir(flujos)
+
+            # Guardar en la base de datos con la tasa convertida
+            guardar_financiamiento(tipo, monto, tasa_convertida, int(total_periodos), tir)
+            messagebox.showinfo("Éxito", f"Financiamiento agregado correctamente\nTasa convertida: {tasa_convertida:.4f}%")
+
             # Limpiar campos
             entrada_fin_monto.delete(0, tk.END)
             entrada_fin_tasa.delete(0, tk.END)
@@ -360,7 +400,7 @@ def interfaz_grafica():
                     financiamiento['id'],
                     financiamiento['tipo_amortizacion'].capitalize(),
                     f"S/ {financiamiento['monto']:.2f}",
-                    f"{financiamiento['tasa']:.2f}%",
+                    f"{financiamiento['tasa']:.2f}%",  # Aquí se muestra la tasa convertida
                     financiamiento['plazo'],
                     f"{financiamiento['tir']:.6f}%"  # Mostrar TIR sin redondeo
                 ))
@@ -370,10 +410,10 @@ def interfaz_grafica():
                 tree_financiamientos.insert("", "end", values=(
                     financiamiento.get('id', 'N/A'),
                     financiamiento.get('tipo_amortizacion', 'N/A').capitalize(),
-                    f"S/ {financiamiento.get('monto', 0):.2f}",
-                    f"{financiamiento.get('tasa', 0):.2f}%",
+                    f"S/ {financiamiento.get('monto', 0)::.2f}",
+                    f"{financiamiento.get('tasa', 0)::.2f}%",
                     financiamientos.get('plazo', 'N/A'),
-                    f"{financiamientos.get('tir', 0)::.6f}%"  # Mostrar TIR sin redondeo
+                    f"{financiamientos.get('tir', 0):.6f}%"  # Mostrar TIR sin redondeo
                 ))
         # ...existing code...
 
@@ -395,7 +435,11 @@ def interfaz_grafica():
     entrada_fin_monto = tk.Entry(frame_datos, font=("Arial", 12))
     entrada_fin_tasa = tk.Entry(frame_datos, font=("Arial", 12))
     entrada_fin_plazo = tk.Entry(frame_datos, font=("Arial", 12))
-
+    
+    # Variables para unidades
+    unidad_tasa = tk.StringVar(value="Anual")
+    unidad_plazo = tk.StringVar(value="Meses")
+    
     # Crear elementos para ingresar financiamiento
     tk.Label(frame_datos, text="Tipo de Amortización:", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
     tk.Radiobutton(frame_datos, text="Alemán", variable=tipo_var, value="alemán", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
@@ -407,8 +451,36 @@ def interfaz_grafica():
     tk.Label(frame_datos, text="Tasa (%) :", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
     entrada_fin_tasa.pack(fill=tk.X, pady=5)
     
-    tk.Label(frame_datos, text="Plazo (meses):", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    # Añadir selección de unidad para la tasa
+    tk.Label(frame_datos, text="Unidad de Tasa de Interés:", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    opciones_unidad_tasa = ["Anual", "Semestral", "Trimestral", "Bimestral", "Mensual"]
+    combobox_unidad_tasa = ttk.Combobox(frame_datos, textvariable=unidad_tasa, values=opciones_unidad_tasa, state="readonly")
+    combobox_unidad_tasa.pack(fill=tk.X, pady=5)
+    
+    tk.Label(frame_datos, text="Plazo (cantidad):", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
     entrada_fin_plazo.pack(fill=tk.X, pady=5)
+    
+    # Añadir selección de unidad para el plazo
+    tk.Label(frame_datos, text="Unidad de Plazo:", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    opciones_unidad_plazo = ["Anual", "Semestral", "Trimestral", "Bimestral", "Mensual"]
+    combobox_unidad_plazo = ttk.Combobox(frame_datos, textvariable=unidad_plazo, values=opciones_unidad_plazo, state="readonly")
+    combobox_unidad_plazo.pack(fill=tk.X, pady=5)
+
+    # Función generalizada para convertir tasas de interés
+    def convertir_tasa(tasa_original, periodo_origen, periodo_destino):
+        """
+        Convierte una tasa de interés de un periodo a otro.
+        
+        Parámetros:
+        - tasa_original: Tasa de interés en formato decimal (por ejemplo, 0.12 para 12%).
+        - periodo_origen: Número de periodos por unidad de tiempo original (por ejemplo, 1 para anual).
+        - periodo_destino: Número de periodos por unidad de tiempo destino (por ejemplo, 12 para mensual).
+        
+        Retorna:
+        - Tasa convertida en formato decimal.
+        """
+        tasa_convertida = (1 + tasa_original) ** (periodo_origen / periodo_destino) - 1
+        return tasa_convertida
 
     # Agregar botón para agregar financiamiento
     tk.Button(frame_datos, text="Agregar Financiamiento", command=agregar_opcion, font=("Arial", 12), bg="#2196F3", fg="white").pack(pady=10, fill=tk.X)
@@ -466,14 +538,47 @@ def interfaz_grafica():
     frame_list_financiamientos = Frame(tab_financiamientos, padx=10, pady=10, bg="#f0f0f0")
     frame_list_financiamientos.pack(fill=tk.BOTH, expand=True)
 
-    # Crear Treeview para mostrar financiamientos
-    columns = ("ID", "Tipo", "Monto", "Tasa", "Plazo (meses)", "TIR")
+    # Crear Treeview para mostrar financiamientos, añadiendo la columna "Eliminar"
+    columns = ("ID", "Tipo", "Monto", "Tasa", "Plazo (meses)", "TIR", "Eliminar")
     tree_financiamientos = ttk.Treeview(frame_list_financiamientos, columns=columns, show='headings')
+
     for col in columns:
         tree_financiamientos.heading(col, text=col)
         tree_financiamientos.column(col, anchor="center")
+        if col == "Eliminar":
+            tree_financiamientos.column(col, width=80)
 
     tree_financiamientos.pack(fill=tk.BOTH, expand=True)
+
+    # Definir la función 'on_double_click' antes de usarla
+    def on_double_click(event):
+        item = tree_financiamientos.identify_row(event.y)
+        column = tree_financiamientos.identify_column(event.x)
+        if column == '#7':  # Columna "Eliminar" es la séptima columna
+            if item:
+                financiamiento_id = tree_financiamientos.item(item)['values'][0]
+                eliminar_financiamiento_por_id(financiamiento_id)
+
+    # Asociar evento de doble clic para detectar clics en "Eliminar"
+    tree_financiamientos.bind("<Double-1>", on_double_click)
+
+    # Función para eliminar financiamiento por ID
+    def eliminar_financiamiento_por_id(financiamiento_id):
+        # Confirmar eliminación
+        confirmar = messagebox.askyesno("Confirmar", "¿Deseas eliminar este financiamiento?")
+        if confirmar:
+            eliminar_financiamiento(financiamiento_id)  # Eliminar de la base de datos
+            cargar_financiamientos()  # Actualizar la lista
+            messagebox.showinfo("Éxito", "El financiamiento ha sido eliminado.")
+
+    # Función para manejar el clic en la celda "Eliminar"
+    def on_double_click(event):
+        item = tree_financiamientos.identify_row(event.y)
+        column = tree_financiamientos.identify_column(event.x)
+        if column == '#7':  # Columna "Eliminar" es la séptima columna
+            if item:
+                financiamiento_id = tree_financiamientos.item(item)['values'][0]
+                eliminar_financiamiento_por_id(financiamiento_id)
 
     # Función para cargar financiamientos desde la base de datos
     def cargar_financiamientos():
@@ -483,15 +588,15 @@ def interfaz_grafica():
         # Obtener financiamientos guardados
         financiamientos = obtener_financiamientos_guardados()
         for financiamiento in financiamientos:
-            # ...existing code...
             try:
                 tree_financiamientos.insert("", "end", values=(
                     financiamiento['id'],
                     financiamiento['tipo_amortizacion'].capitalize(),
                     f"S/ {financiamiento['monto']:.2f}",
-                    f"{financiamiento['tasa']:.2f}%",
+                    f"{financiamiento['tasa']:.2f}%",  # Mostrar tasa convertida
                     financiamiento['plazo'],
-                    f"{financiamiento['tir']:.6f}%"
+                    f"{financiamiento['tir']:.6f}%",
+                    "Eliminar"  # Texto en la columna "Eliminar"
                 ))
             except KeyError as e:
                 print(f"Missing key in financiamiento data: {e}")
@@ -502,12 +607,27 @@ def interfaz_grafica():
                     f"S/ {financiamiento.get('monto', 0):.2f}",
                     f"{financiamiento.get('tasa', 0):.2f}%",
                     financiamiento.get('plazo', 'N/A'),
-                    f"{financiamiento.get('tir', 0):.6f}%"
+                    f"{financiamiento.get('tir', 0):.6f}%",
+                    "Eliminar"  # Texto en la columna "Eliminar"
                 ))
-        # ...existing code...
 
     # Cargar financiamientos al iniciar la interfaz gráfica
     cargar_financiamientos()
+
+    def eliminar_financiamiento_seleccionado():
+        seleccionado = tree_financiamientos.selection()
+        if seleccionado:
+            item = tree_financiamientos.item(seleccionado)
+            financiamiento_id = item['values'][0]
+
+            # Confirmar eliminación
+            confirmar = messagebox.askyesno("Confirmar", "¿Deseas eliminar este financiamiento?")
+            if confirmar:
+                eliminar_financiamiento(financiamiento_id)  # Eliminar de la base de datos
+                cargar_financiamientos()  # Actualizar la lista
+                messagebox.showinfo("Éxito", "El financiamiento ha sido eliminado.")
+        else:
+            messagebox.showwarning("Advertencia", "Por favor, selecciona un financiamiento para eliminar.")
 
     # Función para mostrar el cronograma de pagos
     def mostrar_cronograma(event):
