@@ -95,8 +95,8 @@ def visualizar_comparacion():
             elif tipo == "francés":
                 amortizaciones = calcular_amortizacion_frances(monto, tasa, plazo)
             else:
-                messagebox.showerror("Error", "Tipo de amortización desconocido.")
-                return
+                amortizaciones = []
+                messagebox.showwarning("Tipo de amortización", "Tipo de amortización desconocido.")
             
             # Crear ventana para cronograma
             ventana_cronograma = tk.Toplevel()
@@ -109,7 +109,6 @@ def visualizar_comparacion():
                 tree_cronograma.heading(col, text=col)
                 tree_cronograma.column(col, anchor="center")
             tree_cronograma.pack(fill=tk.BOTH, expand=True)
-            
             for idx, pago in enumerate(amortizaciones, 1):
                 tree_cronograma.insert("", "end", values=(
                     idx,
@@ -119,6 +118,35 @@ def visualizar_comparacion():
                 ))
     
     tree_comparacion.bind("<<TreeviewSelect>>", mostrar_cronograma_comparacion)
+
+    # Agregar botón para eliminar financiamiento seleccionado
+    ventana_comparacion.geometry("800x600")
+    ventana_comparacion.configure(bg="#f0f0f0")
+
+    # Agregar ícono y logo
+    # ventana_comparacion.iconbitmap("assets/icon.ico")  # Comentar o eliminar esta línea si no tienes el archivo
+
+    try:
+        logo = Image.open("assets/logo.png")
+        logo = logo.resize((200, 100), Image.LANCZOS)  # Reemplaza ANTIALIAS por LANCZOS
+        logo = ImageTk.PhotoImage(logo)
+        tk.Label(ventana_comparacion, image=logo, bg="#f0f0f0").pack(pady=10)
+    except FileNotFoundError:
+        print("No se pudo cargar el logo. Asegúrate de que el archivo 'logo.png' esté en la carpeta 'assets'.")
+
+    # Función para eliminar financiamiento seleccionado
+    def eliminar_financiamiento_seleccionado():
+        seleccionado = tree_comparacion.selection()
+        if seleccionado:
+            item = tree_comparacion.item(seleccionado)
+            fin_id = item['values'][0]
+            eliminar_financiamiento(fin_id)
+            messagebox.showinfo("Eliminado", "Financiamiento eliminado correctamente.")
+        else:
+            messagebox.showwarning("Seleccionar", "Por favor, selecciona un financiamiento para eliminar.")
+
+    # Botón para eliminar financiamiento
+    tk.Button(ventana_comparacion, text="Eliminar Seleccionado", command=eliminar_financiamiento_seleccionado).pack(pady=5)
 
 def interfaz_grafica():
     ventana = tk.Tk()
@@ -630,7 +658,7 @@ def interfaz_grafica():
             messagebox.showwarning("Advertencia", "Por favor, selecciona un financiamiento para eliminar.")
 
     # Función para mostrar el cronograma de pagos
-    def mostrar_cronograma(event):
+    def mostrar_cronograma():
         seleccionado = tree_financiamientos.selection()
         if seleccionado:
             item = tree_financiamientos.item(seleccionado)
@@ -659,7 +687,6 @@ def interfaz_grafica():
                 tree_cronograma.heading(col, text=col)
                 tree_cronograma.column(col, anchor="center")
             tree_cronograma.pack(fill=tk.BOTH, expand=True)
-            
             for idx, pago in enumerate(amortizaciones, 1):
                 tree_cronograma.insert("", "end", values=(
                     idx,
