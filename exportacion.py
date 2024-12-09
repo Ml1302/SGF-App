@@ -1,6 +1,7 @@
 import csv
 from datetime import datetime
 from fpdf import FPDF
+import matplotlib.pyplot as plt
 
 def exportar_datos(datos, nombre_archivo):
     """

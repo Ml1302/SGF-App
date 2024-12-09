@@ -1,0 +1,10 @@
+
+matplotlib==3.9.3
+numpy==2.2.0
+numpy-financial==1.0.0
+pandas==2.2.3
+pandas-datareader==0.10.0
+reportlab==4.2.5
+requests==2.32.3
+scipy==1.14.1
+yfinance==0.2.25

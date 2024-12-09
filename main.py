@@ -103,18 +103,20 @@ def visualizar_comparacion():
             ventana_cronograma.title(f"Cronograma de Pagos - Financiamiento {fin_id}")
             ventana_cronograma.geometry("600x400")
             
-            columns_cronograma = ("Cuota", "Interés", "Principal", "Saldo")
+            columns_cronograma = ("Cuota", "Interés", "Amortización", "Saldo", "Total Cuota")
             tree_cronograma = ttk.Treeview(ventana_cronograma, columns=columns_cronograma, show='headings')
             for col in columns_cronograma:
                 tree_cronograma.heading(col, text=col)
                 tree_cronograma.column(col, anchor="center")
             tree_cronograma.pack(fill=tk.BOTH, expand=True)
             for idx, pago in enumerate(amortizaciones, 1):
+                total_cuota = pago['interés'] + pago['principal']
                 tree_cronograma.insert("", "end", values=(
                     idx,
                     f"S/ {pago['interés']:.2f}",
                     f"S/ {pago['principal']:.2f}",
-                    f"S/ {pago['saldo']:.2f}"
+                    f"S/ {pago['saldo']:.2f}",
+                    f"S/ {total_cuota:.2f}"
                 ))
     
     tree_comparacion.bind("<<TreeviewSelect>>", mostrar_cronograma_comparacion)
@@ -681,7 +683,7 @@ def interfaz_grafica():
             ventana_cronograma.title(f"Cronograma de Pagos - Financiamiento {fin_id}")
             ventana_cronograma.geometry("600x400")
             
-            columns_cronograma = ("Cuota", "Interés", "Principal", "Saldo")
+            columns_cronograma = ("Cuota", "Interés", "Amortización", "Saldo")
             tree_cronograma = ttk.Treeview(ventana_cronograma, columns=columns_cronograma, show='headings')
             for col in columns_cronograma:
                 tree_cronograma.heading(col, text=col)
