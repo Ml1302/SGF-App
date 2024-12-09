@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import tkinter as tk
 
 def mostrar_grafico(frame_grafico, tipo, monto, tasa, plazo, calcular_interes_compuesto, calcular_interes_simple, calcular_aportaciones_periodicas):
     """
@@ -33,27 +34,39 @@ def mostrar_grafico(frame_grafico, tipo, monto, tasa, plazo, calcular_interes_co
     canvas.get_tk_widget().pack(fill='both', expand=True)
     canvas.draw()
 
-def mostrar_grafico_monte_carlo(frame_grafico, resultados):
+def mostrar_grafico_monte_carlo(resultados):
     """
-    Genera y muestra el histograma de resultados de la simulación de Monte Carlo.
+    Genera y muestra el histograma de resultados de la simulación de Monte Carlo en una ventana emergente.
     """
+    # Crear ventana emergente
+    ventana_grafico = tk.Toplevel()
+    ventana_grafico.title("Gráfico de Simulación de Monte Carlo")
+    ventana_grafico.geometry("800x600")
+
+    # Crear figura para el histograma
     figure = plt.Figure(figsize=(6, 5), dpi=100)
     ax = figure.add_subplot(111)
     ax.hist(resultados, bins=50, alpha=0.75)
     ax.set_title("Distribución de Resultados de Monte Carlo")
     ax.set_xlabel("Capital Final (S/)")
     ax.set_ylabel("Frecuencia")
-    for widget in frame_grafico.winfo_children():
-        widget.destroy()
-    canvas = FigureCanvasTkAgg(figure, frame_grafico)
+
+    # Mostrar el gráfico en la ventana emergente
+    canvas = FigureCanvasTkAgg(figure, ventana_grafico)
     canvas.get_tk_widget().pack(fill='both', expand=True)
     canvas.draw()
 
-def mostrar_grafico_sensibilidad(frame_grafico, resultados):
+def mostrar_grafico_sensibilidad_emergente(resultados):
     """
-    Genera y muestra el gráfico de análisis de sensibilidad.
+    Genera y muestra el gráfico de análisis de sensibilidad en una ventana emergente.
     """
-    figure = plt.Figure(figsize=(6, 4))
+    # Crear ventana emergente
+    ventana_grafico = tk.Toplevel()
+    ventana_grafico.title("Gráfico de Análisis de Sensibilidad")
+    ventana_grafico.geometry("800x600")
+
+    # Crear figura del gráfico
+    figure = plt.Figure(figsize=(8, 6))
     ax = figure.add_subplot(111)
     tasas = [r['tasa'] for r in resultados]
     vans = [r['van'] for r in resultados]
@@ -62,13 +75,12 @@ def mostrar_grafico_sensibilidad(frame_grafico, resultados):
     ax.set_xlabel("Tasa de Interés (%)")
     ax.set_ylabel("VAN")
     ax.grid(True)
-    
-    # Mostrar en el frame_grafico
-    for widget in frame_grafico.winfo_children():
-        widget.destroy()
-    canvas = FigureCanvasTkAgg(figure, frame_grafico)
+
+    # Mostrar el gráfico en la ventana emergente
+    canvas = FigureCanvasTkAgg(figure, ventana_grafico)
     canvas.get_tk_widget().pack(fill='both', expand=True)
     canvas.draw()
+
 
 def graficar_comparativo(escenarios):
     for escenario in escenarios:

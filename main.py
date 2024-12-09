@@ -2,7 +2,6 @@ import tkinter as tk
 import matplotlib.pyplot as plt  # Asegurarse de importar matplotlib
 from tkinter import messagebox, ttk, Frame, Scrollbar, VERTICAL, RIGHT, LEFT, Y, BOTH
 from db import inicializar_db, guardar_simulacion, obtener_historial, guardar_financiamiento, obtener_financiamientos_guardados, eliminar_financiamiento  # Importar eliminar_financiamiento
-from calculos import calcular_interes_simple, calcular_interes_compuesto, calcular_aportaciones_periodicas, calcular_amortizacion_aleman, calcular_amortizacion_frances, calcular_tir, analisis_sensibilidad
 from PIL import Image, ImageTk
 from apis import APIsFinancierasPeru
 from exportacion import exportar_datos, generar_reporte_pdf
@@ -10,7 +9,9 @@ import sqlite3
 from datetime import datetime
 import requests
 import numpy as np  # Asegurarse de importar numpy
-from calculos import convertir_tasa  # Importar la función convertir_tasa
+from calculos import * # Importar la función convertir_tasa
+from graficos import *
+
 
 
 def obtener_tasa_interes_actual():
@@ -129,7 +130,7 @@ def visualizar_comparacion():
     # ventana_comparacion.iconbitmap("assets/icon.ico")  # Comentar o eliminar esta línea si no tienes el archivo
 
     try:
-        logo = Image.open("assets/logo.png")
+        logo = Image.open("assets\logo.png")
         logo = logo.resize((200, 100), Image.LANCZOS)  # Reemplaza ANTIALIAS por LANCZOS
         logo = ImageTk.PhotoImage(logo)
         tk.Label(ventana_comparacion, image=logo, bg="#f0f0f0").pack(pady=10)
@@ -264,19 +265,6 @@ def interfaz_grafica():
         ax.grid()
 
         # Limpiar el marco del gráfico y renderizar el nuevo gráfico
-        for widget in frame_grafico.winfo_children():
-            widget.destroy()
-        canvas = FigureCanvasTkAgg(figure, frame_grafico)
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        canvas.draw()
-
-    def mostrar_grafico_monte_carlo(resultados):
-        figure = plt.Figure(figsize=(6, 5), dpi=100)
-        ax = figure.add_subplot(111)
-        ax.hist(resultados, bins=50, alpha=0.75)
-        ax.set_title("Distribución de Resultados de Monte Carlo")
-        ax.set_xlabel("Capital Final (S/)")
-        ax.set_ylabel("Frecuencia")
         for widget in frame_grafico.winfo_children():
             widget.destroy()
         canvas = FigureCanvasTkAgg(figure, frame_grafico)
@@ -521,15 +509,93 @@ def interfaz_grafica():
 
     def realizar_analisis_sensibilidad():
         try:
-            monto = float(entrada_monto.get())
-            tasa = float(entrada_tasa.get())
-            plazo = int(entrada_plazo.get())
-            
+            # Seleccionar un financiamiento del historial en tree_analisis
+            seleccionado = tree_analisis.selection()
+            if not seleccionado:
+                raise ValueError("Por favor, selecciona un financiamiento del historial.")
+
+            # Obtener datos del financiamiento seleccionado
+            item = tree_analisis.item(seleccionado[0])  # Accede al primer elemento seleccionado
+            valores = item['values']  # Valores del elemento
+
+            # Extraer información necesaria
+            monto = float(str(valores[2]).replace('S/ ', ''))
+            tasa = float(str(valores[3]).replace('%', ''))
+            plazo = int(valores[4])
+
+            # Ejecutar el análisis de sensibilidad
             resultados = analisis_sensibilidad(monto, tasa, plazo)
-            mostrar_grafico_sensibilidad(resultados)
-            
-        except ValueError:
-            messagebox.showerror("Error", "Por favor, ingrese valores válidos")
+
+            # Mostrar el gráfico en una ventana emergente
+            mostrar_grafico_sensibilidad_emergente(resultados)
+
+        except ValueError as e:
+            messagebox.showerror("Error", f"Error en los datos seleccionados: {e}")
+        except IndexError:
+            messagebox.showerror("Error", "No se pudo acceder a los datos del financiamiento seleccionado.")
+
+    # Crear Treeview para análisis avanzado
+    frame_analisis_lista = Frame(tab_analisis, padx=10, pady=10, bg="#f0f0f0")
+    frame_analisis_lista.pack(fill=tk.BOTH, expand=True)
+
+    columns = ("ID", "Tipo", "Monto", "Tasa", "Plazo")
+    tree_analisis = ttk.Treeview(frame_analisis_lista, columns=columns, show='headings')
+    for col in columns:
+        tree_analisis.heading(col, text=col)
+        tree_analisis.column(col, anchor="center")
+    tree_analisis.pack(fill=tk.BOTH, expand=True)
+
+    def cargar_datos_analisis():
+        """Cargar financiamientos al Treeview de análisis."""
+        # Limpiar el Treeview
+        tree_analisis.delete(*tree_analisis.get_children())
+        financiamientos = obtener_financiamientos_guardados()
+        for fin in financiamientos:
+            tree_analisis.insert("", "end", values=(
+                fin['id'],
+                fin['tipo_amortizacion'].capitalize(),
+                f"S/ {fin['monto']:.2f}",
+                f"{fin['tasa']:.2f}%",
+                fin['plazo']
+            ))
+
+    # Cargar financiamientos al iniciar
+    cargar_datos_analisis()
+
+    # Agregar botones para nuevas funcionalidades
+    tk.Button(frame_analisis, text="Análisis de Sensibilidad", 
+              command=realizar_analisis_sensibilidad).pack(side=tk.LEFT, padx=5)
+
+    # Aqui todo sobre montecarlos
+    def realizar_analisis_montecarlo():
+        try:
+            # Obtener datos del financiamiento seleccionado
+            seleccionado = tree_analisis.selection()
+            if not seleccionado:
+                raise ValueError("Por favor, selecciona un financiamiento del historial.")
+
+            # Obtener datos del financiamiento seleccionado
+            item = tree_analisis.item(seleccionado[0])
+            valores = item['values']
+
+            monto_inicial = float(str(valores[2]).replace('S/ ', ''))
+            tasa_media = float(str(valores[3]).replace('%', '')) / 100  # Convertir a decimal
+            plazo = int(valores[4])
+
+            # Ejecutar la simulación de Monte Carlo
+            num_simulaciones = 1000
+            resultados = simulacion_montecarlo(monto_inicial, tasa_media, plazo, num_simulaciones)
+
+            # Mostrar el histograma de Monte Carlo en la ventana emergente
+            mostrar_grafico_monte_carlo(resultados)
+
+        except ValueError as e:
+            messagebox.showerror("Error", f"Error en los datos seleccionados: {e}")
+
+    
+    tk.Button(frame_analisis, text="Simulación de MonteCarlos", 
+                command=realizar_analisis_montecarlo).pack(side=tk.LEFT, padx=5)
+
 
     def exportar_resultados():
         try:
@@ -540,27 +606,6 @@ def interfaz_grafica():
         except Exception as e:
             messagebox.showerror("Error", f"Error al exportar: {str(e)}")
 
-    def mostrar_grafico_sensibilidad(resultados):
-        figure = plt.Figure(figsize=(6, 4))
-        ax = figure.add_subplot(111)
-        tasas = [r['tasa'] for r in resultados]
-        vans = [r['van'] for r in resultados]
-        ax.plot(tasas, vans, marker='o')
-        ax.set_title("Análisis de Sensibilidad")
-        ax.set_xlabel("Tasa de Interés (%)")
-        ax.set_ylabel("VAN")
-        ax.grid(True)
-        
-        # Mostrar en el frame_grafico
-        for widget in frame_grafico.winfo_children():
-            widget.destroy()
-        canvas = FigureCanvasTkAgg(figure, frame_grafico)
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        canvas.draw()
-
-    # Agregar botones para nuevas funcionalidades
-    tk.Button(frame_analisis, text="Análisis de Sensibilidad", 
-              command=realizar_analisis_sensibilidad).pack(side=tk.LEFT, padx=5)
     tk.Button(frame_analisis, text="Exportar Resultados", 
               command=exportar_resultados).pack(side=tk.LEFT, padx=5)
 
@@ -600,15 +645,6 @@ def interfaz_grafica():
             eliminar_financiamiento(financiamiento_id)  # Eliminar de la base de datos
             cargar_financiamientos()  # Actualizar la lista
             messagebox.showinfo("Éxito", "El financiamiento ha sido eliminado.")
-
-    # Función para manejar el clic en la celda "Eliminar"
-    def on_double_click(event):
-        item = tree_financiamientos.identify_row(event.y)
-        column = tree_financiamientos.identify_column(event.x)
-        if column == '#7':  # Columna "Eliminar" es la séptima columna
-            if item:
-                financiamiento_id = tree_financiamientos.item(item)['values'][0]
-                eliminar_financiamiento_por_id(financiamiento_id)
 
     # Función para cargar financiamientos desde la base de datos
     def cargar_financiamientos():

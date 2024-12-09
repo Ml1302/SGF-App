@@ -148,3 +148,36 @@ def comparar_alternativas_financiamiento(opciones, perfil_riesgo='moderado'):
         resultados.append({'opcion': opcion, 'score': score})
     
     return sorted(resultados, key=lambda x: x['score'], reverse=True)
+import numpy as np
+
+import numpy as np
+
+def simulacion_montecarlo(monto_inicial, tasa_media, plazo, num_simulaciones=1000, desviacion_estandar=0.02):
+    """
+    Simula el capital final utilizando Monte Carlo para un conjunto de tasas de interés aleatorias.
+    
+    Parámetros:
+    - monto_inicial: El monto inicial de la inversión.
+    - tasa_media: Tasa de interés promedio (en formato decimal, por ejemplo, 0.05 para 5%).
+    - plazo: El número de periodos (años, meses, etc.).
+    - num_simulaciones: Número de simulaciones a ejecutar.
+    - desviacion_estandar: Desviación estándar de la tasa de interés, para simular variabilidad.
+    
+    Retorna:
+    - Una lista de los resultados de capital final para cada simulación.
+    """
+    resultados = []
+    for _ in range(num_simulaciones):
+        # Generar una tasa de interés aleatoria basada en una distribución normal
+        tasa_simulada = np.random.normal(tasa_media, desviacion_estandar)
+        
+        # Asegurarse de que la tasa no sea negativa
+        if tasa_simulada < 0:
+            tasa_simulada = 0
+        
+        # Calcular el capital final usando interés compuesto
+        capital_final = monto_inicial * (1 + tasa_simulada) ** plazo
+        resultados.append(capital_final)
+    
+    return resultados
+
