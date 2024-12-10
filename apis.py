@@ -7,13 +7,27 @@ class APIsFinancierasPeru:
     def __init__(self):
         self.base_url_bcrp = "https://estadisticas.bcrp.gob.pe/estadisticas/series/api"
         self.tickers_peru = {
-            'Credicorp': 'BAP',
-            'Southern Copper': 'SCCO',
-            'Buenaventura': 'BVN',
-            'InRetail': 'INRETC1.LM',
-            'BBVA Perú': 'BBVAC1.LM'
+            "BVN": "Compañía de Minas Buenaventura",
+            "IFS": "Intercorp Financial Services",
+            "RIMSEGC1.LM": "RIMAC Seguros",
+            "CPAC": "Cementos Pacasmayo S.A.A.",
+            "VOLCABC1.LM": "Volcan Compañía Minera S.A.A.",
+            'BAP': 'Credicorp' ,
+            'SCCO': 'Southern Copper',
+            'INRETC1.LM': 'InRetail',
+            'BBVAC1.LM': 'BBVA Perú'
         }
-
+    def obtener_datos_acciones_peruanas(self, ticker):
+        """
+        Obtiene los datos históricos de una acción en Yahoo Finance.
+        """
+        try:
+            accion = yf.Ticker(ticker)
+            datos = accion.history(period="1y")  # Datos de un año
+            return datos
+        except Exception as e:
+            print(f"Error al obtener datos de la acción {ticker}: {e}")
+            return None
     def obtener_tasa_referencia_bcrp(self):
         """
         Obtiene la tasa de referencia del BCRP.
@@ -56,27 +70,7 @@ class APIsFinancierasPeru:
         except Exception as e:
             print(f"Error al obtener la inflación anual: {e}")
             return None
-
-    def obtener_datos_acciones_peruanas(self, ticker):
-        """
-        Obtiene los datos históricos de una acción peruana.
         
-        Parámetros:
-        - ticker: Símbolo de la acción en la bolsa peruana.
-        
-        Retorna:
-        - DataFrame con datos históricos de precios.
-        """
-        try:
-            # Implementar la lógica para obtener datos de acciones, por ejemplo, usando Yahoo Finance
-            import yfinance as yf
-            accion = yf.Ticker(ticker)
-            historial = accion.history(period="1y")  # Último año
-            return historial
-        except Exception as e:
-            print(f"Error al obtener datos de la acción {ticker}: {e}")
-            return None
-
     def obtener_tipo_cambio(self):
         """
         Obtiene el tipo de cambio actual USD a PEN.

@@ -309,38 +309,92 @@ def interfaz_grafica():
     
     # Botón para actualizar datos del mercado
     tk.Button(frame_mercado, text="Actualizar Datos", command=actualizar_datos_mercado).pack(pady=5)
-
-    # Agregar botón para ver datos de acciones
+    # Funcionalidad para Datos de Acciones
     def mostrar_datos_acciones():
-        try:
-            # Crear una nueva ventana para mostrar datos de acciones
-            ventana_acciones = tk.Toplevel()
-            ventana_acciones.title("Datos de Acciones Peruanas")
-            ventana_acciones.geometry("400x300")
+        """
+        Ventana para seleccionar una acción, ver su historial y realizar análisis de riesgo.
+        """
+        ventana_acciones = tk.Toplevel()
+        ventana_acciones.title("Datos de Acciones Peruanas")
+        ventana_acciones.geometry("500x400")
+
+        # Lista de acciones
+        tk.Label(ventana_acciones, text="Seleccione una acción:").pack(pady=5)
+        lista_acciones = ttk.Combobox(ventana_acciones, values=list(datos_peru.tickers_peru.keys()))
+        lista_acciones.pack(pady=5)
+
+        # Mostrar datos históricos
+        label_historial = tk.Label(ventana_acciones, text="Historial de la acción:")
+        label_historial.pack(pady=5)
+        texto_historial = tk.Text(ventana_acciones, height=10, width=60)
+        texto_historial.pack(pady=5)
+
+        def actualizar_historial():
+            ticker = lista_acciones.get()
+            if not ticker:
+                messagebox.showerror("Error", "Seleccione una acción.")
+                return
             
-            # Crear lista de acciones disponibles
-            lista_acciones = ttk.Combobox(ventana_acciones, values=list(datos_peru.tickers_peru.keys()))
-            lista_acciones.pack(pady=10)
-            
-            def actualizar_datos_accion():
+            datos = datos_peru.obtener_datos_acciones_peruanas(ticker)
+            if datos is not None:
+                texto_historial.delete("1.0", tk.END)
+                texto_historial.insert(tk.END, f"Último precio: {datos['Close'][-1]:.2f}\n")
+                texto_historial.insert(tk.END, f"Máximo (1 año): {datos['High'].max():.2f}\n")
+                texto_historial.insert(tk.END, f"Mínimo (1 año): {datos['Low'].min():.2f}\n")
+            else:
+                messagebox.showerror("Error", "No se pudo obtener los datos.")
+
+        tk.Button(ventana_acciones, text="Actualizar", command=actualizar_historial).pack(pady=5)
+
+        # Simulación Monte Carlo
+        def realizar_analisis():
+            try:
                 ticker = lista_acciones.get()
+                if not ticker:
+                    raise ValueError("Seleccione una acción.")
+                
+                tasa_interes = float(entry_tasa.get())
+                dias_simulacion = int(entry_dias.get())
+                num_simulaciones = int(entry_simulaciones.get())
+
                 datos = datos_peru.obtener_datos_acciones_peruanas(ticker)
-                if datos is not None:
-                    texto_info = f"Último precio: {datos['Close'][-1]:.2f}\n"
-                    texto_info += f"Máximo (1 año): {datos['High'].max():.2f}\n"
-                    texto_info += f"Mínimo (1 año): {datos['Low'].min():.2f}"
-                    label_info_acciones.config(text=texto_info)
-            
-            tk.Button(ventana_acciones, text="Actualizar", command=actualizar_datos_accion).pack(pady=5)
-            label_info_acciones = tk.Label(ventana_acciones, text="Seleccione una acción")
-            label_info_acciones.pack(pady=10)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al mostrar datos de acciones: {str(e)}")
-    
-    # Agregar botón para ver acciones
-    tk.Button(frame_mercado, text="Ver Acciones", command=mostrar_datos_acciones).pack(pady=5)
-    
+                if datos is None:
+                    raise ValueError("No se pudo obtener los datos históricos para la acción seleccionada.")
+
+                precio_inicial = datos['Close'][-1]
+                resultados = simulacion_montecarlo(precio_inicial, tasa_interes / 100, dias_simulacion, num_simulaciones)
+                resumen = analisis_riesgo_simulacion(resultados)
+
+                mostrar_grafico_monte_carlo(resultados)
+                messagebox.showinfo("Resultados", f"Promedio: {resumen['capital_final_promedio']:.2f}\n"
+                                                f"Máximo: {resumen['capital_final_maximo']:.2f}\n"
+                                                f"Mínimo: {resumen['capital_final_minimo']:.2f}\n"
+                                                f"Desviación estándar: {resumen['desviacion_estandar']:.2f}")
+            except ValueError as e:
+                messagebox.showerror("Error", str(e))
+
+        tk.Label(ventana_acciones, text="Parámetros para Análisis de Riesgo:").pack(pady=5)
+        tk.Label(ventana_acciones, text="Tasa de Interés (%):").pack()
+        entry_tasa = tk.Entry(ventana_acciones)
+        entry_tasa.pack(pady=5)
+
+        tk.Label(ventana_acciones, text="Días de Simulación:").pack()
+        entry_dias = tk.Entry(ventana_acciones)
+        entry_dias.pack(pady=5)
+
+        tk.Label(ventana_acciones, text="Número de Simulaciones:").pack()
+        entry_simulaciones = tk.Entry(ventana_acciones)
+        entry_simulaciones.pack(pady=5)
+
+        tk.Button(ventana_acciones, text="Realizar Análisis", command=realizar_analisis).pack(pady=10)
+
+    # Botón en la pestaña "Datos de Acciones"
+    tk.Button(tab_datos_mercado, text="Ver Acciones", command=mostrar_datos_acciones).pack(pady=20)
+
+    # Mantener funcionalidades originales en "Inversiones", "Financiamientos" y "Análisis Avanzados"
+    tk.Label(tab_inversiones, text="Funcionalidades de Inversiones aquí.").pack(pady=20)
+    tk.Label(tab_financiamientos, text="Funcionalidades de Financiamientos aquí.").pack(pady=20)
+    tk.Label(tab_analisis, text="Funcionalidades de Análisis Avanzados aquí.").pack(pady=20)
     # Agregar sección para comparación de financiamientos
     # tk.Label(frame_datos, text="Agregar Opciones de Financiamiento:", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w", pady=(20, 5))
 

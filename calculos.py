@@ -180,4 +180,26 @@ def simulacion_montecarlo(monto_inicial, tasa_media, plazo, num_simulaciones=100
         resultados.append(capital_final)
     
     return resultados
+def simulacion_monte_carlo2(tasa_interes, capital_inicial, dias_simulacion, num_simulaciones):
+    """
+    Simula el rendimiento del capital usando Monte Carlo.
+    """
+    resultados = []
+    
+    for _ in range(num_simulaciones):
+        rendimiento_dia = np.random.normal(tasa_interes / 252, 0.02, dias_simulacion)
+        capital_final = capital_inicial * np.exp(np.cumsum(rendimiento_dia)[-1])
+        resultados.append(capital_final)
+    
+    return resultados
 
+def analisis_riesgo_simulacion(resultados):
+    """
+    Analiza el riesgo basado en los resultados de la simulación de Monte Carlo.
+    """
+    return {
+        "capital_final_promedio": np.mean(resultados),
+        "capital_final_maximo": np.max(resultados),
+        "capital_final_minimo": np.min(resultados),
+        "desviacion_estandar": np.std(resultados)
+    }
