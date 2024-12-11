@@ -11,6 +11,9 @@ import requests
 import numpy as np  # Asegurarse de importar numpy
 from calculos import * # Importar la función convertir_tasa
 from graficos import *
+from tkinter import filedialog
+import csv
+import pandas as pd
 
 
 
@@ -178,10 +181,11 @@ def interfaz_grafica():
     tab_datos_mercado = ttk.Frame(notebook)
     tab_analisis = ttk.Frame(notebook)
 
-    notebook.add(tab_inversiones, text="Inversiones")
-    notebook.add(tab_financiamientos, text="Financiamientos")
-    notebook.add(tab_datos_mercado, text="Datos del Mercado")
-    notebook.add(tab_analisis, text="Análisis Avanzado")
+    notebook.add(tab_inversiones, text="Opciones de financiamiento")
+    notebook.add(tab_financiamientos, text="Financiamientos guardados")
+    notebook.add(tab_analisis, text="Análisis avanzado de financiamientos")
+    notebook.add(tab_datos_mercado, text="Inversión en acciones")
+    
 
     # Marco principal dividido en secciones
     frame_datos = Frame(tab_inversiones, padx=10, pady=10, bg="#f0f0f0")
@@ -197,20 +201,8 @@ def interfaz_grafica():
     entrada_plazo = tk.Entry(frame_datos, font=("Arial", 12))
 
     # Crear elementos para ingresar datos
-    tk.Label(frame_datos, text="Selecciona el tipo de inversión:", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    # tk.Radiobutton(frame_datos, text="Interés Compuesto", variable=tipo_inversion, value="compuesto", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    # tk.Radiobutton(frame_datos, text="Interés Simple", variable=tipo_inversion, value="simple", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    # tk.Radiobutton(frame_datos, text="Aportaciones Periódicas", variable=tipo_inversion, value="periodicas", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    # tk.Radiobutton(frame_datos, text="Simulación Monte Carlo", variable=tipo_inversion, value="montecarlo", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    tk.Label(frame_datos, text="Rellena el formulario con el financiamiento que deseas analizar:", bg="#f0f0f0").pack(anchor="w")
 
-    # tk.Label(frame_datos, text="Monto inicial (S/):", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    # entrada_monto.pack(fill=tk.X, pady=5)
-    # tk.Label(frame_datos, text="Tasa de interés (%):", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    # entrada_tasa.pack(fill=tk.X, pady=5)
-    # tk.Label(frame_datos, text="Plazo (años):", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    # entrada_plazo.pack(fill=tk.X, pady=5)
-
-    # Función para calcular y actualizar el gráfico
     def calcular_y_graficar():
         try:
             # Recuperar datos
@@ -279,120 +271,78 @@ def interfaz_grafica():
     frame_mercado.pack(side=tk.BOTTOM, fill=tk.X)
     
     datos_peru = APIsFinancierasPeru()
-    
-    def actualizar_datos_mercado():
+     
+    # Lista de acciones
+    tk.Label(tab_datos_mercado, text="Seleccione una acción:").pack(pady=5)
+    lista_acciones = ttk.Combobox(tab_datos_mercado, values=list(datos_peru.tickers_peru.keys()))
+    lista_acciones.pack(pady=5)
+
+    # Mostrar datos históricos
+    label_historial = tk.Label(tab_datos_mercado, text="Historial de la acción:")
+    label_historial.pack(pady=5)
+    texto_historial = tk.Text(tab_datos_mercado, height=10, width=60)
+    texto_historial.pack(pady=5)
+
+    def actualizar_historial():
+        ticker = lista_acciones.get()
+        if not ticker:
+            messagebox.showerror("Error", "Seleccione una acción.")
+            return
+        
+        datos = datos_peru.obtener_datos_acciones_peruanas(ticker)
+        if datos is not None:
+            texto_historial.delete("1.0", tk.END)
+            texto_historial.insert(tk.END, f"Último precio: {datos['Close'][-1]:.2f}\n")
+            texto_historial.insert(tk.END, f"Máximo (1 año): {datos['High'].max():.2f}\n")
+            texto_historial.insert(tk.END, f"Mínimo (1 año): {datos['Low'].min():.2f}\n")
+        else:
+            messagebox.showerror("Error", "No se pudo obtener los datos.")
+
+    tk.Button(tab_datos_mercado, text="Actualizar", command=actualizar_historial).pack(pady=5)
+
+    # Simulación Monte Carlo
+    tk.Label(tab_datos_mercado, text="Parámetros para Análisis de Riesgo:").pack(pady=5)
+    tk.Label(tab_datos_mercado, text="Tasa de Interés (%):").pack()
+    entry_tasa = tk.Entry(tab_datos_mercado)
+    entry_tasa.pack(pady=5)
+
+    tk.Label(tab_datos_mercado, text="Días de Simulación:").pack()
+    entry_dias = tk.Entry(tab_datos_mercado)
+    entry_dias.pack(pady=5)
+
+    tk.Label(tab_datos_mercado, text="Número de Simulaciones:").pack()
+    entry_simulaciones = tk.Entry(tab_datos_mercado)
+    entry_simulaciones.pack(pady=5)
+
+    def realizar_analisis():
         try:
-            tasa_ref = datos_peru.obtener_tasa_referencia_bcrp()
-            inflacion = datos_peru.obtener_inflacion_anual()
-            tipo_cambio = datos_peru.obtener_tipo_cambio()
-            
-            if all(dato is None for dato in [tasa_ref, inflacion, tipo_cambio]):
-                messagebox.showwarning("Advertencia", "No se pudieron obtener datos del BCRP")
-                label_mercado.config(text="No hay datos disponibles")
-            else:
-                texto = ""
-                if tasa_ref is not None:
-                    texto += f"Tasa BCRP: {tasa_ref:.2f}% | "
-                    entrada_tasa.delete(0, tk.END)
-                    entrada_tasa.insert(0, str(tasa_ref))
-                if inflacion is not None:
-                    texto += f"Inflación: {inflacion:.2f}% | "
-                if tipo_cambio is not None:
-                    texto += f"Tipo de Cambio: S/ {tipo_cambio:.2f}"
-                label_mercado.config(texto.strip(' | '))
-        except Exception as e:
-            messagebox.showerror("Error", f"Error en la actualización: {str(e)}")
-            label_mercado.config(text="Error al obtener datos del mercado")
-    
-    label_mercado = tk.Label(frame_mercado, text="Cargando datos del mercado...", bg="#f0f0f0")
-    label_mercado.pack(pady=5)
-    
-    # Botón para actualizar datos del mercado
-    tk.Button(frame_mercado, text="Actualizar Datos", command=actualizar_datos_mercado).pack(pady=5)
-    # Funcionalidad para Datos de Acciones
-    def mostrar_datos_acciones():
-        """
-        Ventana para seleccionar una acción, ver su historial y realizar análisis de riesgo.
-        """
-        ventana_acciones = tk.Toplevel()
-        ventana_acciones.title("Datos de Acciones Peruanas")
-        ventana_acciones.geometry("500x400")
-
-        # Lista de acciones
-        tk.Label(ventana_acciones, text="Seleccione una acción:").pack(pady=5)
-        lista_acciones = ttk.Combobox(ventana_acciones, values=list(datos_peru.tickers_peru.keys()))
-        lista_acciones.pack(pady=5)
-
-        # Mostrar datos históricos
-        label_historial = tk.Label(ventana_acciones, text="Historial de la acción:")
-        label_historial.pack(pady=5)
-        texto_historial = tk.Text(ventana_acciones, height=10, width=60)
-        texto_historial.pack(pady=5)
-
-        def actualizar_historial():
             ticker = lista_acciones.get()
             if not ticker:
-                messagebox.showerror("Error", "Seleccione una acción.")
-                return
+                raise ValueError("Seleccione una acción.")
             
+            tasa_interes = float(entry_tasa.get())
+            dias_simulacion = int(entry_dias.get())
+            num_simulaciones = int(entry_simulaciones.get())
+
             datos = datos_peru.obtener_datos_acciones_peruanas(ticker)
-            if datos is not None:
-                texto_historial.delete("1.0", tk.END)
-                texto_historial.insert(tk.END, f"Último precio: {datos['Close'][-1]:.2f}\n")
-                texto_historial.insert(tk.END, f"Máximo (1 año): {datos['High'].max():.2f}\n")
-                texto_historial.insert(tk.END, f"Mínimo (1 año): {datos['Low'].min():.2f}\n")
-            else:
-                messagebox.showerror("Error", "No se pudo obtener los datos.")
+            if datos is None:
+                raise ValueError("No se pudo obtener los datos históricos para la acción seleccionada.")
 
-        tk.Button(ventana_acciones, text="Actualizar", command=actualizar_historial).pack(pady=5)
+            precio_inicial = datos['Close'][-1]
+            resultados = simulacion_montecarlo(precio_inicial, tasa_interes / 100, dias_simulacion, num_simulaciones)
+            resumen = analisis_riesgo_simulacion(resultados)
 
-        # Simulación Monte Carlo
-        def realizar_analisis():
-            try:
-                ticker = lista_acciones.get()
-                if not ticker:
-                    raise ValueError("Seleccione una acción.")
-                
-                tasa_interes = float(entry_tasa.get())
-                dias_simulacion = int(entry_dias.get())
-                num_simulaciones = int(entry_simulaciones.get())
+            mostrar_grafico_monte_carlo(resultados)
+            messagebox.showinfo("Resultados", f"Promedio: {resumen['capital_final_promedio']:.2f}\n"
+                                            f"Máximo: {resumen['capital_final_maximo']:.2f}\n"
+                                            f"Mínimo: {resumen['capital_final_minimo']:.2f}\n"
+                                            f"Desviación estándar: {resumen['desviacion_estandar']:.2f}")
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
 
-                datos = datos_peru.obtener_datos_acciones_peruanas(ticker)
-                if datos is None:
-                    raise ValueError("No se pudo obtener los datos históricos para la acción seleccionada.")
-
-                precio_inicial = datos['Close'][-1]
-                resultados = simulacion_montecarlo(precio_inicial, tasa_interes / 100, dias_simulacion, num_simulaciones)
-                resumen = analisis_riesgo_simulacion(resultados)
-
-                mostrar_grafico_monte_carlo(resultados)
-                messagebox.showinfo("Resultados", f"Promedio: {resumen['capital_final_promedio']:.2f}\n"
-                                                f"Máximo: {resumen['capital_final_maximo']:.2f}\n"
-                                                f"Mínimo: {resumen['capital_final_minimo']:.2f}\n"
-                                                f"Desviación estándar: {resumen['desviacion_estandar']:.2f}")
-            except ValueError as e:
-                messagebox.showerror("Error", str(e))
-
-        tk.Label(ventana_acciones, text="Parámetros para Análisis de Riesgo:").pack(pady=5)
-        tk.Label(ventana_acciones, text="Tasa de Interés (%):").pack()
-        entry_tasa = tk.Entry(ventana_acciones)
-        entry_tasa.pack(pady=5)
-
-        tk.Label(ventana_acciones, text="Días de Simulación:").pack()
-        entry_dias = tk.Entry(ventana_acciones)
-        entry_dias.pack(pady=5)
-
-        tk.Label(ventana_acciones, text="Número de Simulaciones:").pack()
-        entry_simulaciones = tk.Entry(ventana_acciones)
-        entry_simulaciones.pack(pady=5)
-
-        tk.Button(ventana_acciones, text="Realizar Análisis", command=realizar_analisis).pack(pady=10)
-
-    # Botón en la pestaña "Datos de Acciones"
-    tk.Button(tab_datos_mercado, text="Ver Acciones", command=mostrar_datos_acciones).pack(pady=20)
+    tk.Button(tab_datos_mercado, text="Realizar Análisis", command=realizar_analisis).pack(pady=10)
 
     # Mantener funcionalidades originales en "Inversiones", "Financiamientos" y "Análisis Avanzados"
-    tk.Label(tab_inversiones, text="Funcionalidades de Inversiones aquí.").pack(pady=20)
     tk.Label(tab_financiamientos, text="Funcionalidades de Financiamientos aquí.").pack(pady=20)
     tk.Label(tab_analisis, text="Funcionalidades de Análisis Avanzados aquí.").pack(pady=20)
     # Agregar sección para comparación de financiamientos
@@ -500,40 +450,38 @@ def interfaz_grafica():
         else:
             messagebox.showwarning("Advertencia", "Selecciona un financiamiento para eliminar.")
 
-    tk.Button(frame_datos, text="Visualizar Comparación", command=visualizar_comparacion).pack(pady=10, fill=tk.X)
-
     # Declarar variables para opciones de financiamiento
     tipo_var = tk.StringVar(value="alemán")
-    entrada_fin_monto = tk.Entry(frame_datos, font=("Arial", 12))
-    entrada_fin_tasa = tk.Entry(frame_datos, font=("Arial", 12))
-    entrada_fin_plazo = tk.Entry(frame_datos, font=("Arial", 12))
+    entrada_fin_monto = tk.Entry(frame_datos)
+    entrada_fin_tasa = tk.Entry(frame_datos)
+    entrada_fin_plazo = tk.Entry(frame_datos)
     
     # Variables para unidades
     unidad_tasa = tk.StringVar(value="Anual")
     unidad_plazo = tk.StringVar(value="Meses")
     
     # Crear elementos para ingresar financiamiento
-    tk.Label(frame_datos, text="Tipo de Amortización:", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    tk.Radiobutton(frame_datos, text="Alemán", variable=tipo_var, value="alemán", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
-    tk.Radiobutton(frame_datos, text="Francés", variable=tipo_var, value="frances", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    tk.Label(frame_datos, text="Tipo de Amortización:", bg="#f0f0f0").pack(anchor="w")
+    tk.Radiobutton(frame_datos, text="Alemán", variable=tipo_var, value="alemán", bg="#f0f0f0").pack(anchor="w")
+    tk.Radiobutton(frame_datos, text="Francés", variable=tipo_var, value="frances", bg="#f0f0f0").pack(anchor="w")
     
-    tk.Label(frame_datos, text="Monto (S/):", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    tk.Label(frame_datos, text="Monto (S/):", bg="#f0f0f0").pack(anchor="w")
     entrada_fin_monto.pack(fill=tk.X, pady=5)
     
-    tk.Label(frame_datos, text="Tasa (%) :", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    tk.Label(frame_datos, text="Tasa (%) :", bg="#f0f0f0").pack(anchor="w")
     entrada_fin_tasa.pack(fill=tk.X, pady=5)
     
     # Añadir selección de unidad para la tasa
-    tk.Label(frame_datos, text="Unidad de Tasa de Interés:", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    tk.Label(frame_datos, text="Unidad de Tasa de Interés:", bg="#f0f0f0").pack(anchor="w")
     opciones_unidad_tasa = ["Anual", "Semestral", "Trimestral", "Bimestral", "Mensual"]
     combobox_unidad_tasa = ttk.Combobox(frame_datos, textvariable=unidad_tasa, values=opciones_unidad_tasa, state="readonly")
     combobox_unidad_tasa.pack(fill=tk.X, pady=5)
     
-    tk.Label(frame_datos, text="Plazo (cantidad):", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    tk.Label(frame_datos, text="Plazo (cantidad):", bg="#f0f0f0").pack(anchor="w")
     entrada_fin_plazo.pack(fill=tk.X, pady=5)
     
     # Añadir selección de unidad para el plazo
-    tk.Label(frame_datos, text="Unidad de Plazo:", bg="#f0f0f0", font=("Arial", 12)).pack(anchor="w")
+    tk.Label(frame_datos, text="Unidad de Plazo:", bg="#f0f0f0").pack(anchor="w")
     opciones_unidad_plazo = ["Anual", "Semestral", "Trimestral", "Bimestral", "Mensual"]
     combobox_unidad_plazo = ttk.Combobox(frame_datos, textvariable=unidad_plazo, values=opciones_unidad_plazo, state="readonly")
     combobox_unidad_plazo.pack(fill=tk.X, pady=5)
@@ -555,7 +503,9 @@ def interfaz_grafica():
         return tasa_convertida
 
     # Agregar botón para agregar financiamiento
-    tk.Button(frame_datos, text="Agregar Financiamiento", command=agregar_opcion, font=("Arial", 12), bg="#2196F3", fg="white").pack(pady=10, fill=tk.X)
+    tk.Button(frame_datos, text="Agregar Financiamiento", command=agregar_opcion).pack(pady=10, fill=tk.X)
+
+    tk.Button(frame_datos, text="Visualizar Comparación", command=visualizar_comparacion).pack(pady=10, fill=tk.X)
 
     # Agregar frame para análisis avanzado
     frame_analisis = Frame(tab_analisis, padx=10, pady=10, bg="#f0f0f0")
@@ -653,15 +603,56 @@ def interfaz_grafica():
 
     def exportar_resultados():
         try:
-            datos = obtener_historial()
-            nombre_archivo = f"resultados_financieros_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            exportar_datos(datos, nombre_archivo)
-            messagebox.showinfo("Éxito", f"Datos exportados a {nombre_archivo}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al exportar: {str(e)}")
+            financiamientos = obtener_financiamientos_guardados()
+            if not financiamientos:
+                messagebox.showinfo("Información", "No hay resultados para exportar.")
+                return
 
-    tk.Button(frame_analisis, text="Exportar Resultados", 
-              command=exportar_resultados).pack(side=tk.LEFT, padx=5)
+            nombre_archivo = filedialog.asksaveasfilename(defaultextension=".xlsx",
+                                                          filetypes=[("Archivo Excel", "*.xlsx")])
+            if not nombre_archivo:
+                return  # El usuario canceló el guardado
+
+            escritor = pd.ExcelWriter(nombre_archivo, engine='xlsxwriter')
+
+            for fin in financiamientos:
+                tipo = fin['tipo_amortizacion']
+                monto = fin['monto']
+                tasa = fin['tasa']
+                plazo = fin['plazo']
+                tir = fin['tir']
+
+                # Calcular el cronograma de pagos según el tipo de amortización
+                if tipo == 'alemán':
+                    amortizacion = calcular_amortizacion_aleman(monto, tasa, plazo)
+                else:
+                    amortizacion = calcular_amortizacion_frances(monto, tasa, plazo)
+
+                # Crear DataFrame para el resumen
+                resumen = {
+                    'ID': [fin['id']],
+                    'Tipo': [tipo.capitalize()],
+                    'Monto': [monto],
+                    'Tasa': [tasa],
+                    'Plazo': [plazo],
+                    'TIR': [tir]
+                }
+                df_resumen = pd.DataFrame(resumen)
+
+                # Crear DataFrame para el cronograma de pagos
+                df_amortizacion = pd.DataFrame(amortizacion)
+                df_amortizacion.index += 1  # Ajustar el índice para que empiece en 1
+                df_amortizacion.index.name = 'Periodo'
+
+                # Escribir el resumen y el cronograma en hojas separadas
+                df_resumen.to_excel(escritor, sheet_name=f"Fin_{fin['id']}_Resumen", index=False)
+                df_amortizacion.to_excel(escritor, sheet_name=f"Fin_{fin['id']}_Cronograma")
+
+            escritor.save()
+            messagebox.showinfo("Éxito", f"Resultados exportados correctamente a {nombre_archivo}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al exportar los resultados: {e}")
+
 
     # Agregar sección para listar financiamientos en la pestaña "Financiamientos"
     frame_list_financiamientos = Frame(tab_financiamientos, padx=10, pady=10, bg="#f0f0f0")
