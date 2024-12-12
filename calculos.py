@@ -111,18 +111,14 @@ def calcular_tir(flujos):
     Calcula la TIR usando los flujos de caja.
     
     Parámetros:
-    - flujos: Lista donde el primer valor es el préstamo (positivo) y los demás son las cuotas (negativas)
+    - flujos: Lista donde el primer valor es el préstamo (negativo) y los demás son los pagos positivos
     
     Retorna:
     - TIR anual en porcentaje
     """
     try:
-        # Asegurarse que el primer flujo (préstamo) sea positivo y las cuotas negativas
-        flujos_ajustados = [abs(flujos[0])]  # Préstamo como positivo
-        flujos_ajustados.extend([-abs(f) for f in flujos[1:]])  # Cuotas como negativas
-        
-        # Calcular TIR mensual
-        tir_mensual = np.irr(flujos_ajustados)
+        # Usar numpy_financial.irr en lugar de numpy.irr
+        tir_mensual = npf.irr(flujos)
         
         if np.isfinite(tir_mensual):
             # Convertir TIR mensual a anual: (1 + r)^12 - 1
