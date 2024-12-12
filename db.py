@@ -48,6 +48,19 @@ def inicializar_db():
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_financiamientos_tipo ON financiamientos (tipo_amortizacion)
         """)
+
+        # Check and add missing columns if necessary
+        cursor.execute("PRAGMA table_info(financiamientos)")
+        existing_columns = [info[1] for info in cursor.fetchall()]
+        required_columns = {
+            'portes': 'REAL DEFAULT 0',
+            'mantenimiento': 'REAL DEFAULT 0',
+            'desgravamen': 'REAL DEFAULT 0'
+        }
+        for column, definition in required_columns.items():
+            if column not in existing_columns:
+                cursor.execute(f"ALTER TABLE financiamientos ADD COLUMN {column} {definition}")
+
         conexion.commit()
         conexion.close()
         print("Base de datos inicializada correctamente")
@@ -100,7 +113,7 @@ def obtener_financiamientos_guardados():
     """
     conexion = sqlite3.connect("db.sqlite3")
     cursor = conexion.cursor()
-    cursor.execute("SELECT * FROM financiamientos")
+    cursor.execute("SELECT id, tipo_amortizacion, monto, tasa, plazo, tir, portes, mantenimiento, desgravamen FROM financiamientos")
     rows = cursor.fetchall()
     conexion.close()
 
