@@ -946,4 +946,4 @@ def interfaz_grafica():
 
 if __name__=="__main__":
     inicializar_db()
-    interfaz_grafica() 
+    interfaz_grafica()
