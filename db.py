@@ -1,51 +1,58 @@
 import sqlite3
 
 def inicializar_db():
-    conexion = sqlite3.connect("db.sqlite3")
-    cursor = conexion.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS inversiones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo TEXT,
-            monto REAL,
-            tasa REAL,
-            plazo INTEGER,
-            resultado REAL,
-            fecha_simulacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_inversiones_tipo ON inversiones (tipo)
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS instrumentos_peru (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            tipo TEXT,
-            rendimiento_historico REAL,
-            riesgo REAL,
-            liquidez TEXT,
-            plazo_minimo INTEGER,
-            monto_minimo REAL,
-            ultima_actualizacion TIMESTAMP
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS financiamientos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo_amortizacion TEXT,
-            monto REAL,
-            tasa REAL,
-            plazo INTEGER,
-            tir REAL,
-            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_financiamientos_tipo ON financiamientos (tipo_amortizacion)
-    """)
-    conexion.commit()
-    conexion.close()
+    try:
+        conexion = sqlite3.connect("db.sqlite3")
+        cursor = conexion.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS inversiones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tipo TEXT,
+                monto REAL,
+                tasa REAL,
+                plazo INTEGER,
+                resultado REAL,
+                fecha_simulacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_inversiones_tipo ON inversiones (tipo)
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS instrumentos_peru (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT,
+                tipo TEXT,
+                rendimiento_historico REAL,
+                riesgo REAL,
+                liquidez TEXT,
+                plazo_minimo INTEGER,
+                monto_minimo REAL,
+                ultima_actualizacion TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS financiamientos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tipo_amortizacion TEXT,
+                monto REAL,
+                tasa REAL,
+                plazo INTEGER,
+                tir REAL,
+                portes REAL DEFAULT 0,
+                mantenimiento REAL DEFAULT 0,
+                desgravamen REAL DEFAULT 0,
+                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_financiamientos_tipo ON financiamientos (tipo_amortizacion)
+        """)
+        conexion.commit()
+        conexion.close()
+        print("Base de datos inicializada correctamente")
+    except Exception as e:
+        print(f"Error al inicializar la base de datos: {e}")
 
 def guardar_simulacion(tipo, monto, tasa, plazo, resultado):
     conexion = sqlite3.connect("db.sqlite3")
@@ -74,31 +81,41 @@ def guardar_instrumento(nombre, tipo, rendimiento, riesgo, liquidez, plazo_min, 
     conexion.commit()
     conexion.close()
 
-def guardar_financiamiento(tipo_amortizacion, monto, tasa, plazo, tir):
+def guardar_financiamiento(tipo_amortizacion, monto, tasa, plazo, tir, portes=0, mantenimiento=0, desgravamen=0):
+    """
+    Guarda un financiamiento en la base de datos, incluyendo los nuevos campos.
+    """
     conexion = sqlite3.connect("db.sqlite3")
     cursor = conexion.cursor()
     cursor.execute("""
-        INSERT INTO financiamientos (tipo_amortizacion, monto, tasa, plazo, tir)
-        VALUES (?, ?, ?, ?, ?)
-    """, (tipo_amortizacion, monto, tasa, plazo, tir))  # 'tasa' es la tasa convertida
+        INSERT INTO financiamientos (tipo_amortizacion, monto, tasa, plazo, tir, portes, mantenimiento, desgravamen)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (tipo_amortizacion, monto, tasa, plazo, tir, portes, mantenimiento, desgravamen))
     conexion.commit()
     conexion.close()
 
 def obtener_financiamientos_guardados():
+    """
+    Obtiene los financiamientos guardados, incluyendo los nuevos campos.
+    """
     conexion = sqlite3.connect("db.sqlite3")
     cursor = conexion.cursor()
-    cursor.execute("SELECT id, tipo_amortizacion, monto, tasa, plazo, tir FROM financiamientos")
-    resultados = cursor.fetchall()
+    cursor.execute("SELECT * FROM financiamientos")
+    rows = cursor.fetchall()
     conexion.close()
+
     financiamientos = []
-    for row in resultados:
+    for row in rows:
         financiamientos.append({
             'id': row[0],
             'tipo_amortizacion': row[1],
             'monto': row[2],
-            'tasa': row[3],  # Esta es la tasa convertida
+            'tasa': row[3],
             'plazo': row[4],
-            'tir': row[5]
+            'tir': row[5],
+            'portes': row[6],
+            'mantenimiento': row[7],
+            'desgravamen': row[8]
         })
     return financiamientos
 

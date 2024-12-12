@@ -1,4 +1,3 @@
-
 matplotlib==3.9.3
 numpy==2.2.0
 numpy-financial==1.0.0
@@ -9,3 +8,5 @@ requests==2.32.3
 scipy==1.14.1
 yfinance==0.2.25
 fpdf==1.7.2
+pandas
+XlsxWriter

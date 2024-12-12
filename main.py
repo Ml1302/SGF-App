@@ -14,7 +14,8 @@ from graficos import *
 from tkinter import filedialog
 import csv
 import pandas as pd
-
+from calculos import calcular_amortizacion_aleman, calcular_amortizacion_frances, convertir_tasa, calcular_tir  # Importar las funciones necesarias
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
 def obtener_tasa_interes_actual():
@@ -88,41 +89,45 @@ def visualizar_comparacion():
         seleccionado = tree_comparacion.selection()
         if seleccionado:
             item = tree_comparacion.item(seleccionado)
-            fin_id = item['values'][0]
-            tipo = item['values'][1].lower()
-            monto = float(item['values'][2].replace('S/ ', ''))
-            tasa = float(item['values'][3].replace('%', ''))
-            plazo = int(item['values'][4])
-            
-            if tipo == "alemán":
-                amortizaciones = calcular_amortizacion_aleman(monto, tasa, plazo)
-            elif tipo == "francés":
-                amortizaciones = calcular_amortizacion_frances(monto, tasa, plazo)
-            else:
-                amortizaciones = []
-                messagebox.showwarning("Tipo de amortización", "Tipo de amortización desconocido.")
-            
-            # Crear ventana para cronograma
-            ventana_cronograma = tk.Toplevel()
-            ventana_cronograma.title(f"Cronograma de Pagos - Financiamiento {fin_id}")
-            ventana_cronograma.geometry("600x400")
-            
-            columns_cronograma = ("Cuota", "Interés", "Amortización", "Saldo", "Total Cuota")
-            tree_cronograma = ttk.Treeview(ventana_cronograma, columns=columns_cronograma, show='headings')
-            for col in columns_cronograma:
-                tree_cronograma.heading(col, text=col)
-                tree_cronograma.column(col, anchor="center")
-            tree_cronograma.pack(fill=tk.BOTH, expand=True)
-            for idx, pago in enumerate(amortizaciones, 1):
-                total_cuota = pago['interés'] + pago['principal']
-                tree_cronograma.insert("", "end", values=(
-                    idx,
-                    f"S/ {pago['interés']:.2f}",
-                    f"S/ {pago['principal']:.2f}",
-                    f"S/ {pago['saldo']:.2f}",
-                    f"S/ {total_cuota:.2f}"
-                ))
-    
+            financiamiento_id = item['values'][0]
+            financiamiento = next((f for f in obtener_financiamientos_guardados() if f['id'] == financiamiento_id), None)
+            if financiamiento:
+                monto = financiamiento['monto']
+                tasa = financiamiento['tasa']
+                plazo = financiamiento['plazo']
+                tipo_amortizacion = financiamiento['tipo_amortizacion']
+                
+                # Calcular el cronograma según el tipo de amortización
+                if tipo_amortizacion.lower() == 'alemán':
+                    cronograma = calcular_amortizacion_aleman(monto, tasa, plazo)
+                elif tipo_amortizacion.lower() == 'frances':
+                    cronograma = calcular_amortizacion_frances(monto, tasa, plazo)
+                else:
+                    messagebox.showerror("Error", f"Tipo de amortización desconocido: {tipo_amortizacion}")
+                    return
+
+                # Mostrar el cronograma en una nueva ventana
+                ventana_cronograma = tk.Toplevel()
+                ventana_cronograma.title(f"Cronograma de {tipo_amortizacion.capitalize()}")
+                ventana_cronograma.geometry("800x400")
+
+                columns = ("Periodo", "Cuota", "Interés", "Amortización", "Saldo")
+                tree_cronograma = ttk.Treeview(ventana_cronograma, columns=columns, show='headings')
+                for col in columns:
+                    tree_cronograma.heading(col, text=col)
+                    tree_cronograma.column(col, anchor="center")
+                tree_cronograma.pack(fill=tk.BOTH, expand=True)
+
+                # Insertar datos en el Treeview
+                for i, fila in enumerate(cronograma, 1):
+                    tree_cronograma.insert("", "end", values=(
+                        i,
+                        f"S/ {fila['cuota']:.2f}",
+                        f"S/ {fila['interés']:.2f}",
+                        f"S/ {fila['principal']:.2f}",
+                        f"S/ {fila['saldo']:.2f}"
+                    ))
+
     tree_comparacion.bind("<<TreeviewSelect>>", mostrar_cronograma_comparacion)
 
     # Agregar botón para eliminar financiamiento seleccionado
@@ -132,8 +137,11 @@ def visualizar_comparacion():
     # Agregar ícono y logo
     # ventana_comparacion.iconbitmap("assets/icon.ico")  # Comentar o eliminar esta línea si no tienes el archivo
 
+    # Fix the logo path by using forward slashes or raw string
     try:
-        logo = Image.open("assets\logo.png")
+        logo = Image.open("assets/logo.png")  # Use forward slash
+        # OR
+        # logo = Image.open(r"assets\logo.png")  # Use raw string
         logo = logo.resize((200, 100), Image.LANCZOS)  # Reemplaza ANTIALIAS por LANCZOS
         logo = ImageTk.PhotoImage(logo)
         tk.Label(ventana_comparacion, image=logo, bg="#f0f0f0").pack(pady=10)
@@ -155,6 +163,7 @@ def visualizar_comparacion():
     tk.Button(ventana_comparacion, text="Eliminar Seleccionado", command=eliminar_financiamiento_seleccionado).pack(pady=5)
 
 def interfaz_grafica():
+    global tree_financiamientos  # Declare as global at the start of the function
     ventana = tk.Tk()
     ventana.title("Simulador Avanzado de Inversión")
     ventana.geometry("800x600")
@@ -356,60 +365,43 @@ def interfaz_grafica():
             monto = float(entrada_fin_monto.get())
             tasa = float(entrada_fin_tasa.get())
             plazo = int(entrada_fin_plazo.get())
-            unidad_t = unidad_tasa.get()
-            unidad_p = unidad_plazo.get()
+            portes = float(entrada_portes.get()) if entrada_portes.get() else 0
+            mantenimiento = float(entrada_mantenimiento.get()) if entrada_mantenimiento.get() else 0
+            desgravamen = float(entrada_desgravamen.get()) if entrada_desgravamen.get() else 0
 
-            # Definir periodos por año según unidad
-            periodos_por_anno = {
-                "Anual": 1, "Anuales": 1, "Año": 1, "Años": 1,
-                "Semestral": 2, "Semestrales": 2, "Semestre": 2, "Semestres": 2,
-                "Trimestral": 4, "Trimestrales": 4, "Trimestre": 4, "Trimestres": 4,
-                "Bimestral": 6, "Bimestrales": 6, "Bimestre": 6, "Bimestres": 6,
-                "Mensual": 12, "Mensuales": 12, "Mes": 12, "Meses": 12
-            }
+            # Convertir la tasa y el plazo a unidades mensuales si es necesario
+            tasa_unidad = unidad_tasa.get()
+            plazo_unidad = unidad_plazo.get()
 
-            # Obtener los periodos por año para la tasa y el plazo
-            periodo_origen = periodos_por_anno.get(unidad_t, None)
-            periodo_destino = periodos_por_anno.get(unidad_p, None)
+            tasa_periodos = {'Anual':1, 'Semestral':2, 'Trimestral':4, 'Bimestral':6, 'Mensual':12}
+            periodo_origen = tasa_periodos[tasa_unidad]
+            periodo_destino = tasa_periodos[plazo_unidad]
 
-            if periodo_origen is None:
-                messagebox.showerror("Error", f"Unidad de tasa desconocida: {unidad_t}")
-                return
-            if periodo_destino is None:
-                messagebox.showerror("Error", f"Unidad de plazo desconocida: {unidad_p}")
-                return
+            tasa_convertida = convertir_tasa(tasa/100, periodo_origen, periodo_destino) * 100  # Convertir a porcentaje
 
-            # Convertir tasa a formato decimal
-            tasa_decimal = tasa / 100
-
-            # Convertir la tasa utilizando la función convertir_tasa
-            tasa_convertida_decimal = convertir_tasa(tasa_decimal, periodo_origen, periodo_destino)
-            tasa_convertida = tasa_convertida_decimal * 100  # Volver a porcentaje
-
-            # Calcular el total de períodos
-            total_periodos = plazo * periodo_destino
-
-            # Calcular amortización y TIR usando la tasa convertida y el número de periodos
-            if tipo == "alemán":
-                amort = calcular_amortizacion_aleman(monto, tasa_convertida, int(total_periodos))
+            # Calcular cronograma según el tipo de amortización
+            if tipo == 'alemán':
+                cronograma = calcular_amortizacion_aleman(monto, tasa_convertida, plazo, portes, mantenimiento, desgravamen)
+            elif tipo == 'frances':
+                cronograma = calcular_amortizacion_frances(monto, tasa_convertida, plazo, portes, mantenimiento, desgravamen)
             else:
-                amort = calcular_amortizacion_frances(monto, tasa_convertida, int(total_periodos))
+                messagebox.showerror("Error", "Tipo de amortización no reconocido.")
+                return
 
-            flujos = [-monto] + [pago['cuota'] for pago in amort]
+            # Calcular TIR incluyendo las cuotas adicionales
+            flujos = [monto]  # Préstamo como positivo
+            for fila in cronograma:
+                flujos.append(-fila['cuota_total'])  # Cuotas como negativas
+            
             tir = calcular_tir(flujos)
-
-            # Guardar en la base de datos con la tasa convertida
-            guardar_financiamiento(tipo, monto, tasa_convertida, int(total_periodos), tir)
-            messagebox.showinfo("Éxito", f"Financiamiento agregado correctamente\nTasa convertida: {tasa_convertida:.4f}%")
-
-            # Limpiar campos
-            entrada_fin_monto.delete(0, tk.END)
-            entrada_fin_tasa.delete(0, tk.END)
-            entrada_fin_plazo.delete(0, tk.END)
-            # Actualizar lista de opciones
+            if tir is None or not isinstance(tir, (int, float)):
+                tir = 0  # Asignar valor por defecto si la TIR es inválida
+            # Guardar el financiamiento en la base de datos (modifique según su implementación)
+            guardar_financiamiento(tipo, monto, tasa_convertida, plazo, tir, portes, mantenimiento, desgravamen)
+            messagebox.showinfo("Éxito", "Financiamiento agregado correctamente.")
             cargar_financiamientos()
-        except ValueError:
-            messagebox.showerror("Error", "Por favor, ingresa valores válidos para monto, tasa y plazo.")
+        except ValueError as e:
+            messagebox.showerror("Error", f"Por favor, ingrese valores numéricos válidos. Detalle: {e}")
 
     def cargar_financiamientos():
         # Limpiar el Treeview
@@ -422,9 +414,12 @@ def interfaz_grafica():
                     financiamiento['id'],
                     financiamiento['tipo_amortizacion'].capitalize(),
                     f"S/ {financiamiento['monto']:.2f}",
-                    f"{financiamiento['tasa']:.2f}%",  # Aquí se muestra la tasa convertida
+                    financiamiento['tipo_amortizacion'].capitalize(),
+                    f"S/ {financiamiento['monto']:.2f}",
+                    f"{financiamiento['tasa']:.2f}%",
                     financiamiento['plazo'],
-                    f"{financiamiento['tir']:.6f}%"  # Mostrar TIR sin redondeo
+                    f"{financiamiento['tir']:.6f}%",  # Utilizar financiamiento['tir']
+                    "Eliminar"  # Texto en la columna "Eliminar"
                 ))
             except KeyError as e:
                 print(f"Missing key in financiamiento data: {e}")
@@ -432,10 +427,11 @@ def interfaz_grafica():
                 tree_financiamientos.insert("", "end", values=(
                     financiamiento.get('id', 'N/A'),
                     financiamiento.get('tipo_amortizacion', 'N/A').capitalize(),
-                    f"S/ {financiamiento.get('monto', 0)::.2f}",
+                    f"S/ {financiamiento.get('monto', 0):.2f}",
                     f"{financiamiento.get('tasa', 0)::.2f}%",
                     financiamientos.get('plazo', 'N/A'),
-                    f"{financiamientos.get('tir', 0):.6f}%"  # Mostrar TIR sin redondeo
+                    f"{financiamientos.get('tir', 0):.6f}%",  # Mostrar TIR sin redondeo
+                    "Eliminar"  # Texto en la columna "Eliminar"
                 ))
         # ...existing code...
 
@@ -458,7 +454,7 @@ def interfaz_grafica():
     
     # Variables para unidades
     unidad_tasa = tk.StringVar(value="Anual")
-    unidad_plazo = tk.StringVar(value="Meses")
+    unidad_plazo = tk.StringVar(value="Mensual")  # Cambiar 'Meses' a 'Mensual'
     
     # Crear elementos para ingresar financiamiento
     tk.Label(frame_datos, text="Tipo de Amortización:", bg="#f0f0f0").pack(anchor="w")
@@ -502,7 +498,20 @@ def interfaz_grafica():
         tasa_convertida = (1 + tasa_original) ** (periodo_origen / periodo_destino) - 1
         return tasa_convertida
 
-    # Agregar botón para agregar financiamiento
+    # Añadir los campos de entrada para Portes, Mantenimiento y Desgravamen
+    tk.Label(frame_datos, text="Portes (S/):", bg="#f0f0f0").pack(anchor="w")
+    entrada_portes = tk.Entry(frame_datos)
+    entrada_portes.pack(fill=tk.X, pady=5)
+
+    tk.Label(frame_datos, text="Mantenimiento (S/):", bg="#f0f0f0").pack(anchor="w")
+    entrada_mantenimiento = tk.Entry(frame_datos)
+    entrada_mantenimiento.pack(fill=tk.X, pady=5)
+
+    tk.Label(frame_datos, text="Desgravamen (S/):", bg="#f0f0f0").pack(anchor="w")
+    entrada_desgravamen = tk.Entry(frame_datos)
+    entrada_desgravamen.pack(fill=tk.X, pady=5)
+
+    # Asegurarse de que el botón "Agregar Financiamiento" está correctamente configurado
     tk.Button(frame_datos, text="Agregar Financiamiento", command=agregar_opcion).pack(pady=10, fill=tk.X)
 
     tk.Button(frame_datos, text="Visualizar Comparación", command=visualizar_comparacion).pack(pady=10, fill=tk.X)
@@ -676,7 +685,7 @@ def interfaz_grafica():
         column = tree_financiamientos.identify_column(event.x)
         if column == '#7':  # Columna "Eliminar" es la séptima columna
             if item:
-                financiamiento_id = tree_financiamientos.item(item)['values'][0]
+                financiamiento_id = tree_financiamientos.item(item)['values'][0]  # Usa 'financiamiento_id'
                 eliminar_financiamiento_por_id(financiamiento_id)
 
     # Asociar evento de doble clic para detectar clics en "Eliminar"
@@ -687,7 +696,7 @@ def interfaz_grafica():
         # Confirmar eliminación
         confirmar = messagebox.askyesno("Confirmar", "¿Deseas eliminar este financiamiento?")
         if confirmar:
-            eliminar_financiamiento(financiamiento_id)  # Eliminar de la base de datos
+            eliminar_financiamiento(financiamiento_id)  # Usa 'financiamiento_id' en lugar de 'financiamiento_d'
             cargar_financiamientos()  # Actualizar la lista
             messagebox.showinfo("Éxito", "El financiamiento ha sido eliminado.")
 
@@ -700,13 +709,16 @@ def interfaz_grafica():
         financiamientos = obtener_financiamientos_guardados()
         for financiamiento in financiamientos:
             try:
+                tir_value = financiamiento['tir']
+                if tir_value is None or not isinstance(tir_value, (int, float)):
+                    tir_value = 0  # Asignar valor por defecto si la TIR es inválida
                 tree_financiamientos.insert("", "end", values=(
                     financiamiento['id'],
                     financiamiento['tipo_amortizacion'].capitalize(),
                     f"S/ {financiamiento['monto']:.2f}",
-                    f"{financiamiento['tasa']:.2f}%",  # Mostrar tasa convertida
+                    f"{financiamiento['tasa']:.2f}%",
                     financiamiento['plazo'],
-                    f"{financiamiento['tir']:.6f}%",
+                    f"{tir_value:.6f}%",  # Utilizar tir_value en lugar de financiamiento['tir']
                     "Eliminar"  # Texto en la columna "Eliminar"
                 ))
             except KeyError as e:
@@ -718,7 +730,7 @@ def interfaz_grafica():
                     f"S/ {financiamiento.get('monto', 0):.2f}",
                     f"{financiamiento.get('tasa', 0):.2f}%",
                     financiamiento.get('plazo', 'N/A'),
-                    f"{financiamiento.get('tir', 0):.6f}%",
+                    f"{financiamiento.get('tir', 0):.6f}%",  # Mostrar TIR sin redondeo
                     "Eliminar"  # Texto en la columna "Eliminar"
                 ))
 
@@ -741,47 +753,87 @@ def interfaz_grafica():
             messagebox.showwarning("Advertencia", "Por favor, selecciona un financiamiento para eliminar.")
 
     # Función para mostrar el cronograma de pagos
-    def mostrar_cronograma():
+    def mostrar_cronograma(event=None):
+        global tree_financiamientos
         seleccionado = tree_financiamientos.selection()
-        if seleccionado:
-            item = tree_financiamientos.item(seleccionado)
-            fin_id = item['values'][0]
-            tipo = item['values'][1].lower()
-            monto = float(item['values'][2].replace('S/ ', ''))
-            tasa = float(item['values'][3].replace('%', ''))
-            plazo = int(item['values'][4])
+        if not seleccionado:
+            messagebox.showwarning("Advertencia", "Seleccione un financiamiento para ver el cronograma.")
+            return
+
+        item = tree_financiamientos.item(seleccionado)
+        financiamiento_id = item['values'][0]  # Asegúrate de usar 'financiamiento_id' correctamente
+        financiamiento = next((f for f in obtener_financiamientos_guardados() if f['id'] == financiamiento_id), None)
+        
+        if not financiamiento:
+            return
             
-            if tipo == "alemán":
-                amortizaciones = calcular_amortizacion_aleman(monto, tasa, plazo)
-            elif tipo == "francés":
-                amortizaciones = calcular_amortizacion_frances(monto, tasa, plazo)
-            else:
-                messagebox.showerror("Error", "Tipo de amortización desconocido.")
-                return
-            
-            # Crear ventana para cronograma
-            ventana_cronograma = tk.Toplevel()
-            ventana_cronograma.title(f"Cronograma de Pagos - Financiamiento {fin_id}")
-            ventana_cronograma.geometry("600x400")
-            
-            columns_cronograma = ("Cuota", "Interés", "Amortización", "Saldo")
-            tree_cronograma = ttk.Treeview(ventana_cronograma, columns=columns_cronograma, show='headings')
-            for col in columns_cronograma:
-                tree_cronograma.heading(col, text=col)
-                tree_cronograma.column(col, anchor="center")
-            tree_cronograma.pack(fill=tk.BOTH, expand=True)
-            for idx, pago in enumerate(amortizaciones, 1):
-                tree_cronograma.insert("", "end", values=(
-                    idx,
-                    f"S/ {pago['interés']:.2f}",
-                    f"S/ {pago['principal']:.2f}",
-                    f"S/ {pago['saldo']:.2f}"
-                ))
+        monto = financiamiento['monto']
+        tasa = financiamiento['tasa']
+        plazo = financiamiento['plazo']
+        tipo_amortizacion = financiamiento['tipo_amortizacion']
+        portes = financiamiento.get('portes', 0)
+        mantenimiento = financiamiento.get('mantenimiento', 0)
+        desgravamen = financiamiento.get('desgravamen', 0)
+        
+        # Calcular el cronograma según el tipo de amortización
+        if tipo_amortizacion.lower() == 'alemán':
+            cronograma = calcular_amortizacion_aleman(monto, tasa, plazo, portes, mantenimiento, desgravamen)
+        elif tipo_amortizacion.lower() == 'frances':
+            cronograma = calcular_amortizacion_frances(monto, tasa, plazo, portes, mantenimiento, desgravamen)
+        else:
+            messagebox.showerror("Error", f"Tipo de amortización desconocido: {tipo_amortizacion}")
+            return
+
+        # Mostrar el cronograma en una nueva ventana
+        ventana_cronograma = tk.Toplevel()
+        ventana_cronograma.title(f"Cronograma de {tipo_amortizacion.capitalize()}")
+        ventana_cronograma.geometry("1200x600")  # Ventana más grande
+
+        columns = ("Periodo", "Cuota", "Interés", "Amortización", "Portes", "Mantenimiento", "Desgravamen", "Cuota Total", "Saldo")
+        tree_cronograma = ttk.Treeview(ventana_cronograma, columns=columns, show='headings')
+        
+        # Configurar anchos de columna específicos
+        column_widths = {
+            "Periodo": 70,
+            "Cuota": 100,
+            "Interés": 100,
+            "Amortización": 100,
+            "Portes": 100,
+            "Mantenimiento": 100,
+            "Desgravamen": 100,
+            "Cuota Total": 100,
+            "Saldo": 100
+        }
+        
+        for col in columns:
+            tree_cronograma.heading(col, text=col)
+            tree_cronograma.column(col, anchor="center", width=column_widths[col])
+
+        # Agregar scrollbar
+        scrollbar = ttk.Scrollbar(ventana_cronograma, orient="vertical", command=tree_cronograma.yview)
+        scrollbar.pack(side="right", fill="y")
+        tree_cronograma.configure(yscrollcommand=scrollbar.set)
+        
+        tree_cronograma.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Insertar datos en el Treeview
+        for i, fila in enumerate(cronograma, 1):
+            tree_cronograma.insert("", "end", values=(
+                i,
+                f"S/ {fila['cuota']:.2f}",
+                f"S/ {fila['interés']:.2f}",
+                f"S/ {fila['principal']:.2f}",
+                f"S/ {fila['portes']:.2f}",
+                f"S/ {fila['mantenimiento']:.2f}",
+                f"S/ {fila['desgravamen']:.2f}",
+                f"S/ {fila['cuota_total']:.2f}",
+                f"S/ {fila['saldo']:.2f}"
+            ))
 
     # Vincular el evento de selección al Treeview
     tree_financiamientos.bind("<<TreeviewSelect>>", mostrar_cronograma)
 
-    # Inicializar la interfaz
+
     ventana.mainloop()
 
 

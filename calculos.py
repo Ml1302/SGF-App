@@ -41,32 +41,36 @@ def calcular_riesgo_portafolio(pesos, instrumentos):
         riesgo += (peso ** 2) * (instrumento['riesgo'] ** 2)
     return np.sqrt(riesgo)
 
-def calcular_amortizacion_aleman(monto, tasa, plazo):
+def calcular_amortizacion_aleman(monto, tasa, plazo, portes=0, mantenimiento=0, desgravamen=0):
     """
-    Calcula la tabla de amortización alemana.
-    tasa: ya debe venir convertida a la periodicidad correcta
+    Calcula la tabla de amortización alemana incluyendo portes, mantenimiento y desgravamen.
     """
-    tasa_decimal = tasa / 100  # La tasa ya viene en la periodicidad correcta
-    cuota = monto / plazo
+    tasa_decimal = tasa / 100
+    amortizacion_constante = monto / plazo
     amortizaciones = []
     saldo = monto
     for _ in range(plazo):
         interes = saldo * tasa_decimal
-        saldo -= cuota
+        cuota = amortizacion_constante + interes
+        cuota_total = cuota + portes + mantenimiento + desgravamen
+        saldo -= amortizacion_constante
         amortizaciones.append({
-            'cuota': cuota + interes,
+            'cuota': cuota,
             'interés': interes,
-            'principal': cuota,
-            'saldo': saldo
+            'principal': amortizacion_constante,
+            'portes': portes,
+            'mantenimiento': mantenimiento,
+            'desgravamen': desgravamen,
+            'cuota_total': cuota_total,
+            'saldo': max(0, saldo)  # Evitar saldos negativos
         })
     return amortizaciones
 
-def calcular_amortizacion_frances(monto, tasa, plazo):
+def calcular_amortizacion_frances(monto, tasa, plazo, portes=0, mantenimiento=0, desgravamen=0):
     """
-    Calcula la tabla de amortización francesa.
-    tasa: ya debe venir convertida a la periodicidad correcta
+    Calcula la tabla de amortización francesa incluyendo portes, mantenimiento y desgravamen.
     """
-    tasa_decimal = tasa / 100  # La tasa ya viene en la periodicidad correcta
+    tasa_decimal = tasa / 100
     cuota = npf.pmt(tasa_decimal, plazo, -monto)
     amortizaciones = []
     saldo = monto
@@ -74,11 +78,16 @@ def calcular_amortizacion_frances(monto, tasa, plazo):
         interes = saldo * tasa_decimal
         principal = cuota - interes
         saldo -= principal
+        cuota_total = cuota + portes + mantenimiento + desgravamen
         amortizaciones.append({
             'cuota': cuota,
             'interés': interes,
             'principal': principal,
-            'saldo': saldo
+            'portes': portes,
+            'mantenimiento': mantenimiento,
+            'desgravamen': desgravamen,
+            'cuota_total': cuota_total,
+            'saldo': max(0, saldo)  # Evitar saldos negativos
         })
     return amortizaciones
 
@@ -98,8 +107,32 @@ def convertir_tasa(tasa_original, periodo_origen, periodo_destino):
     return tasa_convertida
 
 def calcular_tir(flujos):
-    """Calcula la TIR sin redondear"""
-    return npf.irr(flujos) * 100
+    """
+    Calcula la TIR usando los flujos de caja.
+    
+    Parámetros:
+    - flujos: Lista donde el primer valor es el préstamo (positivo) y los demás son las cuotas (negativas)
+    
+    Retorna:
+    - TIR anual en porcentaje
+    """
+    try:
+        # Asegurarse que el primer flujo (préstamo) sea positivo y las cuotas negativas
+        flujos_ajustados = [abs(flujos[0])]  # Préstamo como positivo
+        flujos_ajustados.extend([-abs(f) for f in flujos[1:]])  # Cuotas como negativas
+        
+        # Calcular TIR mensual
+        tir_mensual = np.irr(flujos_ajustados)
+        
+        if np.isfinite(tir_mensual):
+            # Convertir TIR mensual a anual: (1 + r)^12 - 1
+            tir_anual = ((1 + tir_mensual) ** 12 - 1) * 100
+            return tir_anual
+        else:
+            return 0
+    except Exception as e:
+        print(f"Error al calcular la TIR: {e}")
+        return 0
 
 def calcular_van(flujos, tasa):
     """Calcula el Valor Actual Neto"""
