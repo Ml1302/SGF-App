@@ -109,30 +109,41 @@ def convertir_tasa(tasa_original, periodo_origen, periodo_destino):
 def calcular_tir(flujos):
     """
     Calcula la TIR usando los flujos de caja.
-    
+
     Parámetros:
     - flujos: Lista donde el primer valor es el préstamo (negativo) y los demás son los pagos positivos
-    
+
     Retorna:
-    - TIR anual en porcentaje
+    - TIR como porcentaje, basado únicamente en el número de períodos
     """
     try:
-        # Usar numpy_financial.irr en lugar de numpy.irr
-        tir_mensual = npf.irr(flujos)
+        # Validar que los flujos tengan un cambio de signo
+        if len(flujos) < 2 or all(f > 0 for f in flujos) or all(f < 0 for f in flujos):
+            print("Los flujos de caja no tienen cambio de signo necesario para calcular la TIR.")
+            return 0  # Condición de cálculo no válida
         
-        if np.isfinite(tir_mensual):
-            # Convertir TIR mensual a anual: (1 + r)^12 - 1
-            tir_anual = ((1 + tir_mensual) ** 12 - 1) * 100
-            return tir_anual
+        # Calcular la TIR directamente
+        tir = npf.irr(flujos)
+        
+        # Validar si el valor es finito
+        if np.isfinite(tir):
+            return tir * 100  # Retornar como porcentaje
         else:
             return 0
     except Exception as e:
         print(f"Error al calcular la TIR: {e}")
         return 0
 
-def calcular_van(flujos, tasa):
-    """Calcula el Valor Actual Neto"""
-    return npf.npv(tasa/100, flujos)
+
+def calcular_van(tasa_descuento, flujos):
+    """
+    Calcula el Valor Actual Neto (VAN) de un conjunto de flujos de caja.
+
+    :param tasa_descuento: Tasa de descuento (en formato decimal, por ejemplo, 0.1 para 10%).
+    :param flujos: Lista de flujos de caja, donde el primer elemento es el flujo inicial negativo.
+    :return: El VAN calculado.
+    """
+    return sum(flujo / ((1 + tasa_descuento) ** i) for i, flujo in enumerate(flujos))
 
 def analisis_sensibilidad(monto, tasa_base, plazo, rango_tasa=2, pasos=5):
     """Realiza análisis de sensibilidad variando la tasa de interés"""
@@ -177,9 +188,27 @@ def comparar_alternativas_financiamiento(opciones, perfil_riesgo='moderado'):
         resultados.append({'opcion': opcion, 'score': score})
     
     return sorted(resultados, key=lambda x: x['score'], reverse=True)
-import numpy as np
 
-import numpy as np
+def analizar_riesgo_inversion(flujos_historicos, flujos_futuros, tasa_descuento):
+    """
+    Analiza el riesgo de una inversión utilizando métricas financieras como el VAN y otros indicadores de riesgo.
+
+    :param flujos_historicos: Flujos históricos para calcular indicadores de riesgo.
+    :param flujos_futuros: Flujos futuros proyectados para calcular el VAN.
+    :param tasa_descuento: Tasa de descuento para el análisis.
+    :return: Diccionario con los resultados del análisis de riesgo.
+    """
+    # Calcular indicadores de riesgo
+    indicadores_riesgo = calcular_indicadores_riesgo(flujos_historicos)
+
+    # Calcular VAN
+    van = calcular_van(tasa_descuento, flujos_futuros)
+
+    return {
+        "volatilidad": indicadores_riesgo["volatilidad"],
+        "var_95": indicadores_riesgo["var_95"],
+        "van": van
+    }
 
 def simulacion_montecarlo(monto_inicial, tasa_media, plazo, num_simulaciones=1000, desviacion_estandar=0.02):
     """

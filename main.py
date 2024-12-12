@@ -246,7 +246,7 @@ def interfaz_grafica():
     tab_analisis = ttk.Frame(notebook)
 
     notebook.add(tab_inversiones, text="Opciones de financiamiento")
-    notebook.add(tab_financiamientos, text="Historial de financimaientos")
+    notebook.add(tab_financiamientos, text="Historial de financiamientos")
     notebook.add(tab_analisis, text="Análisis avanzado de financiamientos")
     notebook.add(tab_datos_mercado, text="Inversión en acciones")
     
@@ -366,7 +366,7 @@ def interfaz_grafica():
 
     # Simulación Monte Carlo
     tk.Label(tab_datos_mercado, text="Parámetros para Análisis de Riesgo:").pack(pady=5)
-    tk.Label(tab_datos_mercado, text="Tasa de Interés (%):").pack()
+    tk.Label(tab_datos_mercado, text="Tasa de Interés (anual en %):").pack()
     entry_tasa = tk.Entry(tab_datos_mercado)
     entry_tasa.pack(pady=5)
 
@@ -383,24 +383,37 @@ def interfaz_grafica():
             ticker = lista_acciones.get()
             if not ticker:
                 raise ValueError("Seleccione una acción.")
-            
+
             tasa_interes = float(entry_tasa.get())
             dias_simulacion = int(entry_dias.get())
             num_simulaciones = int(entry_simulaciones.get())
 
+            # Obtener datos históricos
             datos = datos_peru.obtener_datos_acciones_peruanas(ticker)
             if datos is None:
                 raise ValueError("No se pudo obtener los datos históricos para la acción seleccionada.")
 
             precio_inicial = datos['Close'][-1]
+            flujos_historicos = datos['Close'].values
+
+            # Simulación Monte Carlo
             resultados = simulacion_montecarlo(precio_inicial, tasa_interes / 100, dias_simulacion, num_simulaciones)
             resumen = analisis_riesgo_simulacion(resultados)
 
+            # Análisis de riesgo de la inversión
+            flujos_futuros = [precio_inicial] + resultados[:10]  # Proyectamos 10 flujos con los resultados de la simulación
+            analisis_riesgo = analizar_riesgo_inversion(flujos_historicos, flujos_futuros, tasa_interes / 100)
+
             mostrar_grafico_monte_carlo(resultados)
+             # Mostrar resultados
             messagebox.showinfo("Resultados", f"Promedio: {resumen['capital_final_promedio']:.2f}\n"
                                             f"Máximo: {resumen['capital_final_maximo']:.2f}\n"
                                             f"Mínimo: {resumen['capital_final_minimo']:.2f}\n"
-                                            f"Desviación estándar: {resumen['desviacion_estandar']:.2f}")
+                                            f"Desviación estándar: {resumen['desviacion_estandar']:.2f}\n\n"
+                                            f"Análisis de Riesgo:\n"
+                                            f"Volatilidad: {analisis_riesgo['volatilidad']:.2f}\n"
+                                            f"VaR 95%: {analisis_riesgo['var_95']:.2f}\n"
+                                            f"VAN: {analisis_riesgo['van']:.2f}")
         except ValueError as e:
             messagebox.showerror("Error", str(e))
 
@@ -422,17 +435,17 @@ def interfaz_grafica():
             plazo = int(entrada_fin_plazo.get())
             portes = float(entrada_portes.get()) if entrada_portes.get() else 0
             mantenimiento = float(entrada_mantenimiento.get()) if entrada_mantenimiento.get() else 0
-            desgravamen = float(entrada_desgravamen.get()) if entrada_desgravamen.get() else 0
+            desgravamen = float(entrada_desgravamen.get()) / 100 if entrada_desgravamen.get() else 0  # Convertir a decimal
 
             # Convertir la tasa y el plazo a unidades mensuales si es necesario
             tasa_unidad = unidad_tasa.get()
             plazo_unidad = unidad_plazo.get()
 
-            tasa_periodos = {'Anual':1, 'Semestral':2, 'Trimestral':4, 'Bimestral':6, 'Mensual':12}
+            tasa_periodos = {'Anual': 1, 'Semestral': 2, 'Trimestral': 4, 'Bimestral': 6, 'Mensual': 12}
             periodo_origen = tasa_periodos[tasa_unidad]
             periodo_destino = tasa_periodos[plazo_unidad]
 
-            tasa_convertida = convertir_tasa(tasa/100, periodo_origen, periodo_destino) * 100  # Convertir a porcentaje
+            tasa_convertida = convertir_tasa(tasa / 100, periodo_origen, periodo_destino) * 100  # Convertir a porcentaje
 
             # Calcular cronograma según el tipo de amortización
             if tipo == 'alemán':
@@ -443,21 +456,32 @@ def interfaz_grafica():
                 messagebox.showerror("Error", "Tipo de amortización no reconocido.")
                 return
 
-            # Calcular TIR incluyendo las cuotas adicionales
-            flujos = [-monto]  # Préstamo como negativo
+            # Calcular flujos de caja dinámicos considerando desgravamen basado en saldo anterior
+            flujos = [-monto]  # Préstamo como flujo de caja negativo inicial
+            saldo_anterior = monto  # Inicialmente el saldo es el monto del préstamo
+
             for fila in cronograma:
-                flujos.append(fila['cuota_total'])  # Asegurarse de que 'cuota_total' sea positiva
-            
-            # Opcional: Imprimir los flujos para depuración
-            # print(f"Flujos de caja para TIR: {flujos}")
-            
+                desgravamen_cuota = saldo_anterior * desgravamen  # Desgravamen basado en el saldo anterior
+                fila['desgravamen'] = desgravamen_cuota
+                cuota_total = fila['cuota'] + portes + mantenimiento + desgravamen_cuota
+                fila['cuota_total'] = cuota_total
+                flujos.append(cuota_total)
+                saldo_anterior -= fila['principal']  # Reducir saldo por el principal amortizado
+
+            # Validar los flujos y calcular la TIR
             tir = calcular_tir(flujos)
+
             if tir is None or not isinstance(tir, (int, float)):
                 tir = 0  # Asignar valor por defecto si la TIR es inválida
-            # Guardar el financiamiento en la base de datos (modifique según su implementación)
-            guardar_financiamiento(tipo, monto, tasa_convertida, plazo, tir, portes, mantenimiento, desgravamen)
+
+            # Guardar el financiamiento en la base de datos
+            guardar_financiamiento(tipo, monto, tasa_convertida, plazo, tir, portes, mantenimiento, desgravamen * 100)  # Guardar desgravamen como porcentaje
             messagebox.showinfo("Éxito", "Financiamiento agregado correctamente.")
+
+            # Actualizar vistas
             cargar_financiamientos()
+            cargar_datos_analisis()
+
         except ValueError as e:
             messagebox.showerror("Error", f"Por favor, ingrese valores numéricos válidos. Detalle: {e}")
 
@@ -550,7 +574,7 @@ def interfaz_grafica():
     entrada_mantenimiento = tk.Entry(frame_datos)
     entrada_mantenimiento.pack(fill=tk.X, pady=5)
 
-    tk.Label(frame_datos, text="Desgravamen (S/):", bg="#f0f0f0").pack(anchor="w")
+    tk.Label(frame_datos, text="Desgravamen (%):", bg="#f0f0f0").pack(anchor="w")
     entrada_desgravamen = tk.Entry(frame_datos)
     entrada_desgravamen.pack(fill=tk.X, pady=5)
 
@@ -711,7 +735,7 @@ def interfaz_grafica():
     frame_list_financiamientos.pack(fill=tk.BOTH, expand=True)
 
     # Crear Treeview para mostrar financiamientos, añadiendo la columna "Eliminar"
-    columns = ("ID", "Tipo", "Monto", "Tasa", "Plazo (meses)", "TIR", "Eliminar")
+    columns = ("ID", "Tipo", "Monto", "Tasa", "Plazo", "TIR", "Eliminar")
     tree_financiamientos = ttk.Treeview(frame_list_financiamientos, columns=columns, show='headings')
 
     for col in columns:
