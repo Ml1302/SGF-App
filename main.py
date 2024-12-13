@@ -497,7 +497,8 @@ def interfaz_grafica():
                 f"S/ {financiamiento['monto']:.2f}",
                 f"{financiamiento['tasa']:.2f}%",
                 financiamiento['plazo'],
-                f"{financiamiento['tir']:.6f}%"
+                f"{financiamiento['tir']:.6f}%",
+                "Eliminar"  # Añadir texto 'Eliminar' en la columna correspondiente
             ))
     
     # ...existing code...
@@ -759,11 +760,12 @@ def interfaz_grafica():
             item = tree_financiamientos.identify_row(event.y)
             if item:
                 fin_id = tree_financiamientos.item(item)['values'][0]
-                confirmar = messagebox.askyesno("Confirmar Eliminación", "¿Estás seguro de que deseas eliminar este financiamiento?")
+                confirmar = messagebox.askyesno("Confirmar Eliminación", "¿Estás seguro de que quieres eliminar este financiamiento?")
                 if confirmar:
                     eliminar_financiamiento(fin_id)
+                    tree_financiamientos.delete(item)
+                    tree_financiamientos.selection_remove(item)  # Evitar mostrar cronograma
                     messagebox.showinfo("Eliminado", "Financiamiento eliminado correctamente.")
-                    cargar_financiamientos()
     
     # Vincular el evento de clic único para eliminar
     tree_financiamientos.bind("<Button-1>", on_single_click_main)
