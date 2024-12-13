@@ -135,14 +135,9 @@ def calcular_tir(flujos):
         return 0
 
 
-def calcular_van(tasa_descuento, flujos):
-    """
-    Calcula el Valor Actual Neto (VAN) de un conjunto de flujos de caja.
-
-    :param tasa_descuento: Tasa de descuento (en formato decimal, por ejemplo, 0.1 para 10%).
-    :param flujos: Lista de flujos de caja, donde el primer elemento es el flujo inicial negativo.
-    :return: El VAN calculado.
-    """
+def calcular_van(flujos, tasa_descuento):
+    if not isinstance(flujos, (list, tuple)):
+        raise TypeError(f"Se esperaba una lista o tupla de flujos, pero se recibió: {type(flujos)}")
     return sum(flujo / ((1 + tasa_descuento) ** i) for i, flujo in enumerate(flujos))
 
 def analisis_sensibilidad(monto, tasa_base, plazo, rango_tasa=2, pasos=5):

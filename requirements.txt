@@ -10,3 +10,4 @@ yfinance==0.2.25
 fpdf==1.7.2
 pandas
 XlsxWriter
+pyinstaller==6.11.1
