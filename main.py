@@ -16,6 +16,7 @@ import csv
 import pandas as pd
 from calculos import calcular_amortizacion_aleman, calcular_amortizacion_frances, convertir_tasa, calcular_tir  # Importar las funciones necesarias
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import sys
 
 
 def obtener_tasa_interes_actual():
@@ -102,6 +103,7 @@ def visualizar_comparacion():
             financiamiento = next((f for f in obtener_financiamientos_guardados() if f['id'] == financiamiento_id), None)
             
             if not financiamiento:
+                messagebox.showerror("Error", "Financiamiento no encontrado.")
                 return
             
             # ...existing code to mostrar_cronograma...
@@ -382,7 +384,8 @@ def interfaz_grafica():
         try:
             ticker = lista_acciones.get()
             if not ticker:
-                raise ValueError("Seleccione una acción.")
+                messagebox.showerror("Error", "Seleccione una acción.")
+                return
 
             tasa_interes = float(entry_tasa.get())
             dias_simulacion = int(entry_dias.get())
@@ -472,7 +475,8 @@ def interfaz_grafica():
             tir = calcular_tir(flujos)
 
             if tir is None or not isinstance(tir, (int, float)):
-                tir = 0  # Asignar valor por defecto si la TIR es inválida
+                messagebox.showerror("Error", "TIR inválida.")
+                return
 
             # Guardar el financiamiento en la base de datos
             guardar_financiamiento(tipo, monto, tasa_convertida, plazo, tir, portes, mantenimiento, desgravamen * 100)  # Guardar desgravamen como porcentaje
@@ -593,7 +597,8 @@ def interfaz_grafica():
             # Seleccionar un financiamiento del historial en tree_analisis
             seleccionado = tree_analisis.selection()
             if not seleccionado:
-                raise ValueError("Por favor, selecciona un financiamiento del historial.")
+                messagebox.showerror("Error", "Seleccione un financiamiento para analizar.")
+                return
 
             # Obtener datos del financiamiento seleccionado
             item = tree_analisis.item(seleccionado[0])  # Accede al primer elemento seleccionado
@@ -653,7 +658,8 @@ def interfaz_grafica():
             # Obtener datos del financiamiento seleccionado
             seleccionado = tree_analisis.selection()
             if not seleccionado:
-                raise ValueError("Por favor, selecciona un financiamiento del historial.")
+                messagebox.showerror("Error", "Seleccione un financiamiento para realizar la simulación.")
+                return
 
             # Obtener datos del financiamiento seleccionado
             item = tree_analisis.item(seleccionado[0])
@@ -970,6 +976,9 @@ def interfaz_grafica():
     ventana.mainloop()
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
+    if "--init-db" in sys.argv:
+        inicializar_db()
+        sys.exit(0)
     inicializar_db()
     interfaz_grafica()
